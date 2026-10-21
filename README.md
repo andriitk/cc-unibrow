@@ -211,9 +211,22 @@ less to show.
 
 ## Update and uninstall
 
-**Updates.** Turn on auto-update once: in Claude Code open `/plugin` →
-**Marketplaces** → `cc-unibrow` → **Enable auto-update**. Or update by hand
-with `claude plugin update cc-unibrow@cc-unibrow`. Either way the app follows:
+**Updates.** Claude Code doesn't auto-update third-party plugins by default.
+Turn it on once by adding `"autoUpdate": true` to the `cc-unibrow` entry that
+the install wrote to `~/.claude/settings.json`:
+
+```json
+"extraKnownMarketplaces": {
+  "cc-unibrow": {
+    "source": { "source": "github", "repo": "andriitk/cc-unibrow" },
+    "autoUpdate": true
+  }
+}
+```
+
+(If `/plugin` → **Marketplaces** → `cc-unibrow` shows **Enable auto-update**,
+that does the same.) Or update by hand with
+`claude plugin update cc-unibrow@cc-unibrow`. Either way the app follows:
 when a session starts and the installed app is older than the plugin, the
 plugin downloads the matching release, checks it like the first install,
 quits the old app and starts the new one. Set `UNIBROW_NO_AUTO_UPDATE=1` to
