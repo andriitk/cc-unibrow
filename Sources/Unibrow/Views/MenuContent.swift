@@ -71,6 +71,10 @@ struct MenuContent: View {
 
         Divider()
 
+        // Which build is running, so you can tell whether an update arrived.
+        if let version = Self.appVersion {
+            Text("Unibrow \(version)")
+        }
         Button("Copy Install Command") {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(Self.installCommand, forType: .string)
@@ -78,6 +82,9 @@ struct MenuContent: View {
         Button("Quit Unibrow") { NSApp.terminate(nil) }
             .keyboardShortcut("q")
     }
+
+    /// Nil when running unbundled (`swift run`), which has no Info.plist version.
+    static let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
 
     static let installCommand = "curl -fsSL https://raw.githubusercontent.com/andriitk/cc-unibrow/main/install.sh | sh"
 

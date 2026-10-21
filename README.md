@@ -241,8 +241,8 @@ new release usually reaches you over one or two restarts:
 **Update marketplace** (or `claude plugin update cc-unibrow@cc-unibrow` in
 a shell), then `/reload-plugins` or start a new session. Note that
 `claude plugin marketplace update` alone only refreshes the listing and
-leaves the installed plugin as it is. To see which app version you have:
-`defaults read ~/Applications/Unibrow.app/Contents/Info.plist CFBundleShortVersionString`.
+leaves the installed plugin as it is. The menu shows which app version is
+running.
 
 **The app follows the plugin.** When a session starts and the installed app
 is older than the plugin, the plugin downloads the matching release, checks it like the first install,
