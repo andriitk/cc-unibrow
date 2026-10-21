@@ -28,7 +28,7 @@ jobs:
         run: swift test
 
       - name: Build universal app
-        run: UNIVERSAL=1 scripts/build-app.sh
+        run: UNIVERSAL=1 scripts/build-app.sh build
 
       - name: Package
         run: |

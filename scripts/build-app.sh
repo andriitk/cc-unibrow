@@ -2,14 +2,18 @@
 # Builds Unibrow.app from the SwiftPM products. No Xcode project needed;
 # the Command Line Tools are enough.
 #
-#   scripts/build-app.sh [output-dir]     (default: ./build)
+#   scripts/build-app.sh [output-dir]     (default: ./build.noindex)
+#
+# Every folder that holds a built app ends in `.noindex`: Spotlight skips such
+# folders, so build and staging copies never show up as extra "Unibrow" apps
+# in Spotlight, Launchpad or "Open With".
 #
 # UNIVERSAL=1 builds for both Apple silicon and Intel (needs full Xcode, as on
 # CI); by default only for this Mac's architecture.
 set -eu
 
 root=$(cd "$(dirname "$0")/.." && pwd)
-out=${1:-"$root/build"}
+out=${1:-"$root/build.noindex"}
 version=$(cat "$root/VERSION")
 build=$(git -C "$root" rev-list --count HEAD 2>/dev/null || echo 1)
 
@@ -31,7 +35,8 @@ bin=$(swift build --package-path "$root" -c release $arch_flags --show-bin-path)
 # bundle. The signed result is then copied out without any attributes.
 staging=$(mktemp -d "${TMPDIR:-/tmp}/unibrow-build.XXXXXX")
 trap 'rm -rf "$staging"' EXIT
-app="$staging/Unibrow.app"
+mkdir -p "$staging/stage.noindex"
+app="$staging/stage.noindex/Unibrow.app"
 echo "› Assembling Unibrow.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$bin/Unibrow" "$bin/unibrow-hook" "$app/Contents/MacOS/"

@@ -1,5 +1,5 @@
 APP_DIR ?= $(HOME)/Applications
-BUILD_DIR := build
+BUILD_DIR := build.noindex
 
 .PHONY: build test app install quit uninstall run demo clean
 

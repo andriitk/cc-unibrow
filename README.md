@@ -218,7 +218,7 @@ curl -fsSL https://raw.githubusercontent.com/andriitk/cc-unibrow/main/install.sh
 
 ```sh
 swift test          # unit and socket tests
-make app            # build/Unibrow.app
+make app            # build.noindex/Unibrow.app
 make install        # build, install to ~/Applications and start
 make demo           # five fake requests from three "sessions"
 ```

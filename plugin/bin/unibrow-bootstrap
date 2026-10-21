@@ -52,8 +52,9 @@ if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
     exit 1
 fi
 
-ditto -x -k "$work/Unibrow.zip" "$work/unpacked"
-app="$work/unpacked/Unibrow.app"
+# `.noindex`: keep the temporary copy out of Spotlight and Launchpad.
+ditto -x -k "$work/Unibrow.zip" "$work/unpacked.noindex"
+app="$work/unpacked.noindex/Unibrow.app"
 if [ ! -d "$app" ] || ! codesign --verify --deep --strict "$app" 2>/dev/null; then
     log "The downloaded app is missing or its signature is invalid; not installing"
     exit 1
