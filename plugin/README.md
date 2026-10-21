@@ -66,7 +66,10 @@ session starts without the app, or with an app older than this plugin,
    `dev.andriitk.unibrow` and a lower version, never downgrades. If that app
    is running, it is quit first (prompts waiting in the notch fall back to the
    terminal) and started again afterwards. If the copy fails, the old app is
-   put back.
+   put back. After an update it clears Unibrow’s own Accessibility permission
+   (`tccutil reset Accessibility dev.andriitk.unibrow`), because macOS ties
+   that permission to the old build; turn **Exact Window Focus** on again in
+   the menu if you use it. No other app’s permissions are touched.
 
 It logs to `~/Library/Logs/cc-unibrow-bootstrap.log`. If it fails, for example
 offline, Claude Code says so once and it retries after an hour.

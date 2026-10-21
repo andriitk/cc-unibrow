@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.2] - 2026-10-22
+
+### Fixed
+
+- After an app update, Exact Window Focus could look enabled in System
+  Settings but not work, because macOS ties the Accessibility permission to
+  the old build. The update now clears Unibrow's old entry, so the menu shows
+  the feature as off and one click grants it to the new build.
+
 ## [0.2.1] - 2026-10-21
 
 ### Added

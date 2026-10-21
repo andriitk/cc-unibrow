@@ -142,6 +142,14 @@ if ! ditto --norsrc --noextattr "$app" "$target"; then
 fi
 log "Updated $target from $installed to $version"
 
+# The app is ad-hoc signed, so macOS ties an Accessibility grant to the old
+# build: the switch in System Settings would stay on but do nothing. Clear
+# Unibrow's own entry so the menu shows Exact Window Focus as off, and one
+# click grants it to the new build.
+if tccutil reset Accessibility "$bundle_id" >/dev/null 2>&1; then
+    log "Cleared the Accessibility permission of the old build"
+fi
+
 if [ -n "$was_running" ] && [ -z "${UNIBROW_BOOTSTRAP_NO_LAUNCH:-}" ]; then
     open -g "$target"
     log "Started Unibrow"

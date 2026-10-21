@@ -47,7 +47,8 @@ signature, the bundle ID and the version all match. A first install never
 writes over an existing app. An update only replaces a bundle with Unibrow's
 bundle ID and a lower version: it quits that copy if it runs (prompts waiting
 in the notch fall back to the terminal), swaps the bundles, puts the old one
-back if the copy fails, and starts the new app if the old one was running. A
+back if the copy fails, clears Unibrow's Accessibility entry (macOS ties it to
+the old ad-hoc build) and starts the new app if the old one was running. A
 lock directory keeps concurrent sessions from racing; a failure marker stops
 retries (and repeated announcements) for an hour. `UNIBROW_NO_AUTO_UPDATE`
 and `UNIBROW_NO_AUTO_INSTALL` opt out.

@@ -217,8 +217,10 @@ with `claude plugin update cc-unibrow@cc-unibrow`. Either way the app follows:
 when a session starts and the installed app is older than the plugin, the
 plugin downloads the matching release, checks it like the first install,
 quits the old app and starts the new one. Set `UNIBROW_NO_AUTO_UPDATE=1` to
-keep the app as it is. After an app update, re-enable **Exact Window Focus**
-in the menu if you use it (macOS ties the permission to each build).
+keep the app as it is. After an app update, turn **Exact Window Focus** on
+again in the menu if you use it: macOS ties the permission to each build, so
+the update clears Unibrow’s old entry instead of leaving a switch that looks
+on but does nothing.
 
 ```sh
 # update an app you built from source
