@@ -177,7 +177,7 @@ gets its own card.
 
 **Is my code sent anywhere?** No. Unibrow has no network code, no analytics
 and no account. Everything stays in a private local socket that only your
-user can open.
+user can open. See the [privacy policy](PRIVACY.md).
 
 **Does it need special permissions?** No. It never reads your project files,
 so macOS never asks about Documents or Desktop. Accessibility is only for the

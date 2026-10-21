@@ -1,5 +1,6 @@
 {
   "name": "cc-unibrow",
+  "displayName": "Unibrow",
   "version": "0.2.0",
   "description": "Approve Claude Code from your MacBook notch: prompts, questions and finished turns from every session. Installs the Unibrow app on first run.",
   "author": {
@@ -9,5 +10,11 @@
   "homepage": "https://github.com/andriitk/cc-unibrow",
   "repository": "https://github.com/andriitk/cc-unibrow",
   "license": "MIT",
-  "keywords": ["notch", "dynamic-island", "permissions", "approvals", "macos"]
+  "keywords": [
+    "notch",
+    "dynamic-island",
+    "permissions",
+    "approvals",
+    "macos"
+  ]
 }
