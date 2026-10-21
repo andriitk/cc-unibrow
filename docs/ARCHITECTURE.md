@@ -50,13 +50,18 @@ in the notch fall back to the terminal), swaps the bundles, puts the old one
 back if the copy fails, clears Unibrow's Accessibility entry (macOS ties it to
 the old ad-hoc build) and starts the new app if the old one was running. A
 lock directory keeps concurrent sessions from racing; a failure marker stops
-retries (and repeated announcements) for an hour. `UNIBROW_NO_AUTO_UPDATE`
-and `UNIBROW_NO_AUTO_INSTALL` opt out.
+retries (and repeated announcements) for an hour. A release that answers 404
+is not a failure: it means the release is still being built, so the bootstrap
+keeps the current app, sets no marker and tries again at the next session.
+`UNIBROW_NO_AUTO_UPDATE` and `UNIBROW_NO_AUTO_INSTALL` opt out.
 
-The release workflow builds the universal app on CI for every `v*` tag and
-refuses to publish if the tag, `VERSION` and `plugin.json` disagree. Bump the
-plugin's version only in the push that carries its tag, so no plugin version
-ever points at a release that isn't built yet.
+Releases come from `main`. Merging a pull request that changes `VERSION` runs
+the release workflow: it checks that `VERSION`, `plugin.json` and the
+`CHANGELOG.md` section agree, tests, builds the universal app, tags the
+merge commit `v<VERSION>` and attaches the app to the release. CI runs the
+same version checks on every pull request. The plugin reaches users from
+`main` a few minutes before its app is attached; the 404 rule above covers
+that gap.
 
 ## Wire protocol
 

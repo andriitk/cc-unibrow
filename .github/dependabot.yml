@@ -1,0 +1,10 @@
+# The Swift package has no dependencies; only the workflow actions need
+# watching. They are pinned to commit SHAs, and Dependabot proposes updates.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: ci

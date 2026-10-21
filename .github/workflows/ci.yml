@@ -5,13 +5,16 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: macos-15
     # A hung test must fail fast instead of holding a runner for hours.
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Swift version
         run: swift --version
       - name: Test
@@ -24,3 +27,14 @@ jobs:
           python3 -m json.tool plugin/hooks/hooks.json > /dev/null
           python3 -m json.tool plugin/.claude-plugin/plugin.json > /dev/null
           python3 -m json.tool .claude-plugin/marketplace.json > /dev/null
+      # Merging a VERSION change releases it, so catch a broken release here,
+      # before the merge, not in the release workflow after it.
+      - name: Check versions
+        run: |
+          version=$(cat VERSION)
+          grep -q "\"version\": \"$version\"" plugin/.claude-plugin/plugin.json \
+            || { echo "plugin.json version does not match VERSION $version"; exit 1; }
+          grep -q "^## \[$version\]" CHANGELOG.md \
+            || { echo "CHANGELOG.md has no section for $version"; exit 1; }
+      - name: Bootstrap waits for an unpublished release
+        run: sh scripts/test-bootstrap.sh
