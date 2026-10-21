@@ -150,7 +150,7 @@ Click the eyebrow in the menu bar:
 
 | Setting | Default | What it does |
 |---|---|---|
-| Pause (ask in Terminal) | off | Unibrow steps aside; every prompt goes to the terminal. The eyebrow closes its eyes. |
+| Pause (ask in Terminal) | off | Unibrow steps aside: every prompt goes to the terminal (including ones already waiting in the notch) and nothing shows in the notch, finished notices included. The eyebrow closes its eyes. |
 | Deny Stops the Turn | on | After **Deny**, Claude stops and waits for you. Off: Claude tries another approach. |
 | Play Sound | on | A soft *tink* when Claude needs you. Finished notices are always silent. |
 | Show Finished Sessions | on | The green “done” rows. |

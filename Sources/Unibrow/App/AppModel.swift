@@ -30,9 +30,14 @@ final class AppModel {
 
     private(set) var peek: Peek?
 
-    /// While paused, every request goes straight to the terminal prompt.
+    /// While paused, Unibrow steps aside: every request goes straight to the
+    /// terminal prompt and nothing shows in the notch, finished notices
+    /// included.
     var isPaused: Bool {
-        didSet { defaults.set(isPaused, forKey: Keys.paused) }
+        didSet {
+            defaults.set(isPaused, forKey: Keys.paused)
+            if isPaused { stepAside() }
+        }
     }
 
     /// Deny also stops Claude's turn, so it waits for your next instruction
@@ -209,6 +214,16 @@ final class AppModel {
         clearPeek(ifShowing: notice)
     }
 
+    /// Hands every waiting request back to the terminal and clears the notch.
+    private func stepAside() {
+        for request in queue.requests {
+            server.respond(to: request.id, with: .passthrough)
+            _ = queue.remove(id: request.id)
+        }
+        clearFinished()
+        peek = nil
+    }
+
     func clearFinished() {
         finished.removeAll()
         if case .finished = peek { peek = nil }
@@ -333,12 +348,14 @@ final class AppModel {
     }
 
     private func recordFinished(_ payload: HookPayload, message: HookMessage, hookPID: pid_t?) {
-        guard showsFinishedSessions, var notice = FinishedSession(stopPayload: payload) else { return }
+        guard !isPaused, showsFinishedSessions, var notice = FinishedSession(stopPayload: payload) else { return }
         notice.branch = message.branch
         notice.projectRoot = message.projectRoot
         Task {
             let app = await Self.hostApp(for: message, hookPID: hookPID)
             notice.hostPID = app?.processIdentifier
+            // Paused while the host app was being looked up.
+            guard !isPaused else { return }
             finished.record(notice)
             // No peek if you are already looking at that session's app: you
             // can see it is done. No sound either way; this is just an FYI.
