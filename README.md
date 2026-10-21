@@ -33,51 +33,64 @@ answer right there. The terminal keeps working exactly as before.
 
 ## Install
 
-One command installs the app and the Claude Code plugin:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/andriitk/cc-unibrow/main/install.sh | sh
-```
-
-Then restart any Claude Code sessions that are already running. That’s it:
-look for the eyebrow in the menu bar.
-
-<details>
-<summary><b>What the installer does</b></summary>
-
-1. Checks for macOS 14+ and Apple’s Command Line Tools. If they are missing,
-   it tells you to run `xcode-select --install` (already done if you have
-   Xcode or Homebrew).
-2. Downloads the source to `~/.local/share/cc-unibrow/src` and builds
-   `Unibrow.app` into `~/Applications`. Because it is built on your Mac, macOS
-   never treats it as an untrusted download.
-3. Installs the Claude Code plugin `cc-unibrow` (the hooks). It never edits
-   your `settings.json`.
-
-Run it again any time to update.
-
-</details>
-
-<details>
-<summary><b>Manual install</b></summary>
-
-```sh
-git clone https://github.com/andriitk/cc-unibrow.git
-cd cc-unibrow
-make install                       # build and start Unibrow.app
-```
-
-Then, inside Claude Code:
+In Claude Code, run:
 
 ```
 /plugin install cc-unibrow --marketplace andriitk/cc-unibrow
 ```
 
+That’s it. The next time a session starts, the plugin downloads the Unibrow
+app, checks it and starts it. In a few seconds the eyebrow appears in the
+menu bar, and prompts start showing up in the notch.
+
+<details>
+<summary><b>What happens on first start</b></summary>
+
+1. The plugin sees that the Unibrow app is not installed and says so in
+   Claude Code.
+2. In the background, it downloads `Unibrow.zip` of exactly the plugin’s
+   version from this repository’s
+   [GitHub Releases](https://github.com/andriitk/cc-unibrow/releases), checks
+   its SHA-256 checksum and code signature, installs it to `~/Applications`
+   and starts it. Claude Code never waits for this.
+3. If anything fails (say, you are offline), nothing is installed; Claude Code
+   tells you once and works as usual. The log is in
+   `~/Library/Logs/cc-unibrow-bootstrap.log`.
+
+Prefer to install the app yourself? Set `UNIBROW_NO_AUTO_INSTALL=1` and use
+the installer below.
+
 </details>
 
-**Requirements:** macOS 14 Sonoma or later · [Claude Code](https://code.claude.com) ·
-Apple’s Command Line Tools. Works on MacBooks with and without a notch, and on
-external displays.
+<details>
+<summary><b>Other ways to install</b></summary>
+
+**Build from source with one command.** Installs both the app and the plugin;
+needs Apple’s Command Line Tools (`xcode-select --install`):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/andriitk/cc-unibrow/main/install.sh | sh
+```
+
+**From a shell instead of a session:**
+
+```sh
+claude plugin install cc-unibrow --marketplace andriitk/cc-unibrow
+```
+
+**Manually:**
+
+```sh
+git clone https://github.com/andriitk/cc-unibrow.git
+cd cc-unibrow
+make install                       # build and start Unibrow.app
+claude plugin install cc-unibrow --marketplace andriitk/cc-unibrow
+```
+
+</details>
+
+**Requirements:** macOS 14 Sonoma or later and [Claude Code](https://code.claude.com).
+Works on MacBooks with and without a notch, and on external displays.
 
 ## How to use
 
@@ -184,17 +197,18 @@ less to show.
 
 | Problem | Fix |
 |---|---|
-| Nothing appears | Check the eyebrow is in the menu bar, and restart the Claude Code session. Then run `make -C ~/.local/share/cc-unibrow/src demo` to send five test requests. |
+| Nothing appears | Check the eyebrow is in the menu bar. If it isn’t, see `~/Library/Logs/cc-unibrow-bootstrap.log`, or install with the one-line installer above. Then restart the Claude Code session. |
 | Menu says the plugin is not installed | Click **Install Claude Code Plugin** in the menu, or run `/plugin install cc-unibrow --marketplace andriitk/cc-unibrow` in Claude Code. |
-| Claude Code says the Unibrow app is missing | Run the install command above. |
+| Claude Code says the app could not be installed | Run the one-line installer from *Other ways to install*. |
 | The wrong window comes forward | Turn on **Exact Window Focus** in the menu. |
 | Anything else | `log stream --predicate 'subsystem == "dev.andriitk.unibrow"'` shows what the app is doing. [Open an issue](https://github.com/andriitk/cc-unibrow/issues) with what you see. |
 
 ## Update and uninstall
 
 ```sh
-# update: run the installer again
-curl -fsSL https://raw.githubusercontent.com/andriitk/cc-unibrow/main/install.sh | sh
+# update
+claude plugin update cc-unibrow@cc-unibrow
+curl -fsSL https://raw.githubusercontent.com/andriitk/cc-unibrow/main/install.sh | sh   # updates the app
 
 # uninstall the app, its data and the plugin
 curl -fsSL https://raw.githubusercontent.com/andriitk/cc-unibrow/main/install.sh | sh -s -- --uninstall

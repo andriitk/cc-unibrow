@@ -1,0 +1,73 @@
+#!/bin/sh
+# Installs the Unibrow app for a plugin-only install. Started in the background
+# by the SessionStart hook when the app is missing; runs once.
+#
+#   unibrow-bootstrap <version>
+#
+# Downloads Unibrow.zip of exactly that release from GitHub, checks its
+# SHA-256 and code signature, installs it to ~/Applications and starts it.
+# Everything is logged to ~/Library/Logs/cc-unibrow-bootstrap.log.
+set -eu
+
+version="${1:?usage: unibrow-bootstrap <version>}"
+repo="andriitk/cc-unibrow"
+app_dir="${HOME}/Applications"
+support="${HOME}/Library/Application Support/cc-unibrow"
+lock="${support}/bootstrap.lock"
+# Marks a recent failure, so sessions don't retry (and announce) on every start.
+failed="${support}/bootstrap-failed"
+
+log() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
+
+mkdir -p "$support" "$app_dir"
+
+# One bootstrap at a time, even with several sessions starting together.
+# A lock older than ten minutes is left over from a crash.
+if [ -d "$lock" ] && [ -n "$(find "$lock" -maxdepth 0 -mmin +10 2>/dev/null)" ]; then
+    rmdir "$lock" 2>/dev/null || true
+fi
+if ! mkdir "$lock" 2>/dev/null; then
+    log "Another install is already running"
+    exit 0
+fi
+
+work=$(mktemp -d "${TMPDIR:-/tmp}/unibrow-bootstrap.XXXXXX")
+cleanup() {
+    status=$?
+    rm -rf "$work"
+    rmdir "$lock" 2>/dev/null || true
+    if [ "$status" -eq 0 ]; then rm -f "$failed"; else touch "$failed"; fi
+}
+trap cleanup EXIT
+
+base="https://github.com/${repo}/releases/download/v${version}"
+log "Downloading Unibrow ${version} from ${base}"
+curl -fsSL --retry 2 --max-time 120 -o "$work/Unibrow.zip" "$base/Unibrow.zip"
+curl -fsSL --retry 2 --max-time 30 -o "$work/Unibrow.zip.sha256" "$base/Unibrow.zip.sha256"
+
+expected=$(cut -d ' ' -f 1 < "$work/Unibrow.zip.sha256")
+actual=$(shasum -a 256 "$work/Unibrow.zip" | cut -d ' ' -f 1)
+if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
+    log "Checksum mismatch (expected ${expected}, got ${actual}); not installing"
+    exit 1
+fi
+
+ditto -x -k "$work/Unibrow.zip" "$work/unpacked"
+app="$work/unpacked/Unibrow.app"
+if [ ! -d "$app" ] || ! codesign --verify --deep --strict "$app" 2>/dev/null; then
+    log "The downloaded app is missing or its signature is invalid; not installing"
+    exit 1
+fi
+
+# Never replace an app the user installed in the meantime.
+if [ -d "$app_dir/Unibrow.app" ] || [ -d "/Applications/Unibrow.app" ]; then
+    log "Unibrow is already installed; nothing to do"
+    exit 0
+fi
+
+ditto --norsrc --noextattr "$app" "$app_dir/Unibrow.app"
+log "Installed to $app_dir/Unibrow.app"
+if [ -z "${UNIBROW_BOOTSTRAP_NO_LAUNCH:-}" ]; then
+    open -g "$app_dir/Unibrow.app"
+    log "Started Unibrow"
+fi

@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] - 2026-10-21
+
+### Added
+
+- Install with one command inside Claude Code: on first start the plugin
+  downloads the matching Unibrow.app from GitHub Releases, verifies its
+  SHA-256 and code signature, installs it to `~/Applications` and starts it.
+  No Swift or Command Line Tools needed. Set `UNIBROW_NO_AUTO_INSTALL=1` to
+  opt out.
+- Universal (Apple silicon and Intel) app builds attached to every release by
+  CI.
+
+### Fixed
+
+- The repository lookup could loop forever outside a git repository on some
+  macOS versions.
+
 ## [0.1.0] - 2026-10-21
 
 First public release.

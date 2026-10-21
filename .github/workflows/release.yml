@@ -1,0 +1,57 @@
+name: Release
+
+# Pushing a tag like v0.2.0 builds a universal Unibrow.app and attaches it to
+# the GitHub release, where the plugin downloads it from on first run.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check that versions match the tag
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          test "$(cat VERSION)" = "$version" || { echo "VERSION is $(cat VERSION), tag is $version"; exit 1; }
+          grep -q "\"version\": \"$version\"" plugin/.claude-plugin/plugin.json \
+            || { echo "plugin.json version does not match $version"; exit 1; }
+
+      - name: Test
+        timeout-minutes: 5
+        run: swift test
+
+      - name: Build universal app
+        run: UNIVERSAL=1 scripts/build-app.sh
+
+      - name: Package
+        run: |
+          cd build
+          lipo -info Unibrow.app/Contents/MacOS/Unibrow
+          ditto -c -k --keepParent Unibrow.app Unibrow.zip
+          shasum -a 256 Unibrow.zip > Unibrow.zip.sha256
+          cat Unibrow.zip.sha256
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          # This version's section of the changelog becomes the release notes.
+          awk -v v="$version" '
+            $0 ~ "^## \\[" v "\\]" { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" build/Unibrow.zip build/Unibrow.zip.sha256 --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" build/Unibrow.zip build/Unibrow.zip.sha256 \
+              --title "Unibrow $version" --notes-file notes.md
+          fi

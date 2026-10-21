@@ -1,16 +1,54 @@
 #!/bin/sh
 # Claude Code hook entry point for cc-unibrow.
 #
-# Forwards the hook to the relay that the Unibrow app links on launch. When the
-# app was never installed, this is a no-op and Claude Code behaves as usual.
+# Forwards each hook to the relay that the Unibrow app links on launch.
+# Without the app, every event is a no-op so Claude Code behaves as usual;
+# only SessionStart acts: it installs the app once, in the background.
 relay="${HOME}/Library/Application Support/cc-unibrow/bin/unibrow-hook"
-if [ ! -x "$relay" ]; then
-    # Plugin without the app: say so once per session, then stay out of the way.
-    if [ "${1:-}" = "SessionStart" ]; then
-        printf '%s\n' '{"systemMessage":"Unibrow: the Claude Code plugin is installed, but the Unibrow app is not. Install it with: curl -fsSL https://raw.githubusercontent.com/andriitk/cc-unibrow/main/install.sh | sh"}'
+
+if [ -x "$relay" ]; then
+    # SessionStart exists only for the bootstrap below.
+    [ "${1:-}" = "SessionStart" ] && exit 0
+    exec "$relay" "$@"
+fi
+
+[ "${1:-}" = "SessionStart" ] || exit 0
+
+say() {
+    printf '{"systemMessage":"Unibrow: %s"}\n' "$1"
+}
+
+# The app is installed but has never run (it links the relay on launch).
+for app in "${HOME}/Applications/Unibrow.app" "/Applications/Unibrow.app"; do
+    if [ -d "$app" ]; then
+        say "the app is installed but not running. Open Unibrow from your Applications folder."
+        exit 0
     fi
+done
+
+manual="curl -fsSL https://raw.githubusercontent.com/andriitk/cc-unibrow/main/install.sh | sh"
+failed="${HOME}/Library/Application Support/cc-unibrow/bootstrap-failed"
+
+# The last automatic install failed less than an hour ago: don't retry yet.
+if [ -n "$(find "$failed" -mmin -60 2>/dev/null)" ]; then
+    say "could not install the app automatically (details in ~/Library/Logs/cc-unibrow-bootstrap.log). Install it with: $manual"
     exit 0
 fi
-# The app handles every event it knows; SessionStart is only for the hint above.
-[ "${1:-}" = "SessionStart" ] && exit 0
-exec "$relay" "$@"
+
+if [ -n "${UNIBROW_NO_AUTO_INSTALL:-}" ]; then
+    say "the plugin is installed, but the Unibrow app is not. Install it with: $manual"
+    exit 0
+fi
+
+# Install the app matching this plugin's version, detached from this hook so
+# Claude Code never waits for the download.
+here=$(cd "$(dirname "$0")" && pwd)
+version=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$here/../.claude-plugin/plugin.json" | head -n 1)
+[ -n "$version" ] || exit 0
+log_file="${HOME}/Library/Logs/cc-unibrow-bootstrap.log"
+mkdir -p "${HOME}/Library/Logs"
+perl -MPOSIX -e 'POSIX::setsid(); exec @ARGV' sh "$here/unibrow-bootstrap" "$version" \
+    </dev/null >>"$log_file" 2>&1 &
+
+say "installing the notch app in the background (one time). In a few seconds the eyebrow appears in the menu bar and approvals start showing in the notch, in this session too."
+exit 0

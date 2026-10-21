@@ -30,7 +30,20 @@ Unibrow has three parts: a Claude Code **plugin** that registers hooks, a tiny
 | `PostToolUse`, `PostToolUseFailure`, `PermissionDenied` | async | A request was answered elsewhere: drop its card. |
 | `UserPromptSubmit`, `SessionEnd` | async | The session moved on: drop its cards and its “finished” notice. |
 | `Stop` | async | The turn ended: drop leftover cards, show a “finished” notice. |
-| `SessionStart` | sync, 5 s | Only to tell users who installed the plugin without the app. |
+| `SessionStart` | sync, 5 s | Plugin-only installs: starts the one-time app bootstrap (below). |
+
+## Plugin-only install (bootstrap)
+
+When `SessionStart` finds no app, the shim starts `plugin/bin/unibrow-bootstrap`
+detached from the hook (new session via `setsid`, output to
+`~/Library/Logs/cc-unibrow-bootstrap.log`) and returns immediately. The
+bootstrap downloads `Unibrow.zip` for the plugin's own version from GitHub
+Releases, verifies the SHA-256 published next to it and the code signature,
+installs to `~/Applications` and starts the app. A lock directory keeps
+concurrent sessions from racing; a failure marker stops retries (and repeated
+announcements) for an hour. The release workflow builds the universal app on
+CI for every `v*` tag and refuses to publish if the tag, `VERSION` and
+`plugin.json` disagree.
 
 ## Wire protocol
 

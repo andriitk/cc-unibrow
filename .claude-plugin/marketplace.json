@@ -11,7 +11,7 @@
     {
       "name": "cc-unibrow",
       "source": "./plugin",
-      "description": "Approve or deny Claude Code permission prompts from your MacBook notch. Requires the Unibrow app.",
+      "description": "Approve Claude Code from your MacBook notch: prompts, questions and finished turns from every session. Installs the Unibrow app on first run.",
       "category": "productivity"
     }
   ]
