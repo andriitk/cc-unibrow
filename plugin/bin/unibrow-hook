@@ -2,21 +2,69 @@
 # Claude Code hook entry point for cc-unibrow.
 #
 # Forwards each hook to the relay that the Unibrow app links on launch.
-# Without the app, every event is a no-op so Claude Code behaves as usual;
-# only SessionStart acts: it installs the app once, in the background.
+# Without the app, every event is a no-op so Claude Code behaves as usual.
+# Only SessionStart acts: it installs the app once, or updates an app older
+# than this plugin, in the background.
 relay="${HOME}/Library/Application Support/cc-unibrow/bin/unibrow-hook"
 
-if [ -x "$relay" ]; then
-    # SessionStart exists only for the bootstrap below.
-    [ "${1:-}" = "SessionStart" ] && exit 0
+# Hot path: every hook except SessionStart goes straight to the relay.
+if [ -x "$relay" ] && [ "${1:-}" != "SessionStart" ]; then
     exec "$relay" "$@"
 fi
 
-[ "${1:-}" = "SessionStart" ] || exit 0
+here=$(cd "$(dirname "$0")" && pwd)
+failed="${HOME}/Library/Application Support/cc-unibrow/bootstrap-failed"
 
 say() {
     printf '{"systemMessage":"Unibrow: %s"}\n' "$1"
 }
+
+# The version this plugin ships with; the app should be at least as new.
+plugin_version() {
+    sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+        "$here/../.claude-plugin/plugin.json" | head -n 1
+}
+
+# True when version $1 is lower than version $2 (dotted numbers).
+older_than() {
+    [ "$1" != "$2" ] &&
+        [ "$(printf '%s\n%s\n' "$1" "$2" | sort -t. -k1,1n -k2,2n -k3,3n | head -n 1)" = "$1" ]
+}
+
+# The last automatic install or update failed less than an hour ago.
+recently_failed() {
+    [ -n "$(find "$failed" -mmin -60 2>/dev/null)" ]
+}
+
+# Runs the bootstrap detached from this hook, so Claude Code never waits for
+# the download.
+start_bootstrap() {
+    mkdir -p "${HOME}/Library/Logs"
+    perl -MPOSIX -e 'POSIX::setsid(); exec @ARGV' sh "$here/unibrow-bootstrap" "$@" \
+        </dev/null >>"${HOME}/Library/Logs/cc-unibrow-bootstrap.log" 2>&1 &
+}
+
+if [ -x "$relay" ]; then
+    # SessionStart with the app installed: update it if it is older than
+    # this plugin. The relay link points into the app, at
+    # <app>/Contents/MacOS/unibrow-hook.
+    [ -z "${UNIBROW_NO_AUTO_UPDATE:-}${UNIBROW_NO_AUTO_INSTALL:-}" ] || exit 0
+    recently_failed && exit 0
+    target=$(readlink "$relay" 2>/dev/null) || exit 0
+    app="${target%/Contents/MacOS/unibrow-hook}"
+    [ "$app" != "$target" ] && [ -d "$app" ] || exit 0
+    installed=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \
+        "$app/Contents/Info.plist" 2>/dev/null) || exit 0
+    version=$(plugin_version)
+    [ -n "$installed" ] && [ -n "$version" ] || exit 0
+    if older_than "$installed" "$version"; then
+        start_bootstrap "$version" --update "$app"
+        say "updating the notch app from $installed to $version in the background."
+    fi
+    exit 0
+fi
+
+[ "${1:-}" = "SessionStart" ] || exit 0
 
 # The app is installed but has never run (it links the relay on launch).
 for app in "${HOME}/Applications/Unibrow.app" "/Applications/Unibrow.app"; do
@@ -27,10 +75,8 @@ for app in "${HOME}/Applications/Unibrow.app" "/Applications/Unibrow.app"; do
 done
 
 manual="curl -fsSL https://raw.githubusercontent.com/andriitk/cc-unibrow/main/install.sh | sh"
-failed="${HOME}/Library/Application Support/cc-unibrow/bootstrap-failed"
 
-# The last automatic install failed less than an hour ago: don't retry yet.
-if [ -n "$(find "$failed" -mmin -60 2>/dev/null)" ]; then
+if recently_failed; then
     say "could not install the app automatically (details in ~/Library/Logs/cc-unibrow-bootstrap.log). Install it with: $manual"
     exit 0
 fi
@@ -40,15 +86,9 @@ if [ -n "${UNIBROW_NO_AUTO_INSTALL:-}" ]; then
     exit 0
 fi
 
-# Install the app matching this plugin's version, detached from this hook so
-# Claude Code never waits for the download.
-here=$(cd "$(dirname "$0")" && pwd)
-version=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$here/../.claude-plugin/plugin.json" | head -n 1)
+# Install the app matching this plugin's version.
+version=$(plugin_version)
 [ -n "$version" ] || exit 0
-log_file="${HOME}/Library/Logs/cc-unibrow-bootstrap.log"
-mkdir -p "${HOME}/Library/Logs"
-perl -MPOSIX -e 'POSIX::setsid(); exec @ARGV' sh "$here/unibrow-bootstrap" "$version" \
-    </dev/null >>"$log_file" 2>&1 &
-
+start_bootstrap "$version"
 say "installing the notch app in the background (one time). In a few seconds the eyebrow appears in the menu bar and approvals start showing in the notch, in this session too."
 exit 0

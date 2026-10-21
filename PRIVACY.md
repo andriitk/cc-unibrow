@@ -33,9 +33,9 @@ plugin-only install, a log of the one-time download in
 
 ## Network
 
-The app makes no network requests. The plugin makes one kind of request: on
-first use, when the app is missing, it downloads the app from this project’s
-GitHub Releases (`github.com/andriitk/cc-unibrow/releases`). GitHub may log
+The app makes no network requests. The plugin makes one kind of request: when
+the app is missing, or older than the plugin, it downloads the app from this
+project’s GitHub Releases (`github.com/andriitk/cc-unibrow/releases`). GitHub may log
 that download under [GitHub’s privacy statement](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement).
 No data from your sessions is sent with it.
 

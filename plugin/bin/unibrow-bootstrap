@@ -1,16 +1,24 @@
 #!/bin/sh
-# Installs the Unibrow app for a plugin-only install. Started in the background
-# by the SessionStart hook when the app is missing; runs once.
+# Installs or updates the Unibrow app for the plugin. Started in the background
+# by the SessionStart hook.
 #
-#   unibrow-bootstrap <version>
+#   unibrow-bootstrap <version>                    install (the app is missing)
+#   unibrow-bootstrap <version> --update <app>     replace an older <app>
 #
 # Downloads Unibrow.zip of exactly that release from GitHub, checks its
-# SHA-256 and code signature, installs it to ~/Applications and starts it.
-# Everything is logged to ~/Library/Logs/cc-unibrow-bootstrap.log.
+# SHA-256, code signature, bundle ID and version, then installs it to
+# ~/Applications (never over an existing app) or replaces the older app in
+# place. Everything is logged to ~/Library/Logs/cc-unibrow-bootstrap.log.
 set -eu
 
-version="${1:?usage: unibrow-bootstrap <version>}"
+usage="usage: unibrow-bootstrap <version> [--update <path/to/Unibrow.app>]"
+version="${1:?$usage}"
+target=""
+if [ "${2:-}" = "--update" ]; then
+    target="${3:?$usage}"
+fi
 repo="andriitk/cc-unibrow"
+bundle_id="dev.andriitk.unibrow"
 app_dir="${HOME}/Applications"
 support="${HOME}/Library/Application Support/cc-unibrow"
 lock="${support}/bootstrap.lock"
@@ -18,8 +26,34 @@ lock="${support}/bootstrap.lock"
 failed="${support}/bootstrap-failed"
 
 log() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
+plist() { /usr/libexec/PlistBuddy -c "Print :$2" "$1/Contents/Info.plist" 2>/dev/null; }
+older_than() {
+    [ "$1" != "$2" ] &&
+        [ "$(printf '%s\n%s\n' "$1" "$2" | sort -t. -k1,1n -k2,2n -k3,3n | head -n 1)" = "$1" ]
+}
 
-mkdir -p "$support" "$app_dir"
+mkdir -p "$support"
+
+# Only ever replace a Unibrow app, and only one older than this release.
+if [ -n "$target" ]; then
+    case "$target" in
+        */Unibrow.app) ;;
+        *) log "Refusing to update $target: not a Unibrow.app"; exit 1 ;;
+    esac
+    if [ ! -d "$target" ] || [ "$(plist "$target" CFBundleIdentifier || true)" != "$bundle_id" ]; then
+        log "Refusing to update $target: not the Unibrow app"
+        exit 1
+    fi
+    installed=$(plist "$target" CFBundleShortVersionString || true)
+    if ! older_than "$installed" "$version"; then
+        log "Unibrow $installed at $target is up to date; nothing to do"
+        exit 0
+    fi
+    if [ ! -w "$(dirname "$target")" ]; then
+        log "Cannot update $target: its folder is not writable"
+        exit 1
+    fi
+fi
 
 # One bootstrap at a time, even with several sessions starting together.
 # A lock older than ten minutes is left over from a crash.
@@ -59,16 +93,56 @@ if [ ! -d "$app" ] || ! codesign --verify --deep --strict "$app" 2>/dev/null; th
     log "The downloaded app is missing or its signature is invalid; not installing"
     exit 1
 fi
+if [ "$(plist "$app" CFBundleIdentifier || true)" != "$bundle_id" ] ||
+    [ "$(plist "$app" CFBundleShortVersionString || true)" != "$version" ]; then
+    log "The downloaded app is not Unibrow ${version}; not installing"
+    exit 1
+fi
 
-# Never replace an app the user installed in the meantime.
-if [ -d "$app_dir/Unibrow.app" ] || [ -d "/Applications/Unibrow.app" ]; then
-    log "Unibrow is already installed; nothing to do"
+if [ -z "$target" ]; then
+    # Never replace an app the user installed in the meantime.
+    if [ -d "$app_dir/Unibrow.app" ] || [ -d "/Applications/Unibrow.app" ]; then
+        log "Unibrow is already installed; nothing to do"
+        exit 0
+    fi
+    mkdir -p "$app_dir"
+    ditto --norsrc --noextattr "$app" "$app_dir/Unibrow.app"
+    log "Installed to $app_dir/Unibrow.app"
+    if [ -z "${UNIBROW_BOOTSTRAP_NO_LAUNCH:-}" ]; then
+        open -g "$app_dir/Unibrow.app"
+        log "Started Unibrow"
+    fi
     exit 0
 fi
 
-ditto --norsrc --noextattr "$app" "$app_dir/Unibrow.app"
-log "Installed to $app_dir/Unibrow.app"
-if [ -z "${UNIBROW_BOOTSTRAP_NO_LAUNCH:-}" ]; then
-    open -g "$app_dir/Unibrow.app"
+# Update: quit this copy of the app if it runs. Requests waiting in the notch
+# fall back to the terminal prompt, which Claude Code shows anyway.
+executable="$target/Contents/MacOS/Unibrow"
+was_running=""
+for pid in $(pgrep -f "^$executable( |$)" 2>/dev/null || true); do
+    was_running=1
+    kill -TERM "$pid" 2>/dev/null || true
+done
+if [ -n "$was_running" ]; then
+    log "Quitting Unibrow $installed"
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        pgrep -fq "^$executable( |$)" || break
+        sleep 0.5
+    done
+    pkill -KILL -f "^$executable( |$)" 2>/dev/null || true
+fi
+
+# Swap the bundles, and put the old one back if the copy fails.
+mv "$target" "$work/previous.noindex"
+if ! ditto --norsrc --noextattr "$app" "$target"; then
+    rm -rf "$target"
+    mv "$work/previous.noindex" "$target"
+    log "Could not copy the new app; kept Unibrow $installed"
+    exit 1
+fi
+log "Updated $target from $installed to $version"
+
+if [ -n "$was_running" ] && [ -z "${UNIBROW_BOOTSTRAP_NO_LAUNCH:-}" ]; then
+    open -g "$target"
     log "Started Unibrow"
 fi

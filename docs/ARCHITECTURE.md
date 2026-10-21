@@ -30,20 +30,32 @@ Unibrow has three parts: a Claude Code **plugin** that registers hooks, a tiny
 | `PostToolUse`, `PostToolUseFailure`, `PermissionDenied` | async | A request was answered elsewhere: drop its card. |
 | `UserPromptSubmit`, `SessionEnd` | async | The session moved on: drop its cards and its “finished” notice. |
 | `Stop` | async | The turn ended: drop leftover cards, show a “finished” notice. |
-| `SessionStart` | sync, 5 s | Plugin-only installs: starts the one-time app bootstrap (below). |
+| `SessionStart` | sync, 5 s | Installs a missing app, or updates one older than the plugin (below). |
 
-## Plugin-only install (bootstrap)
+## App install and updates (bootstrap)
 
-When `SessionStart` finds no app, the shim starts `plugin/bin/unibrow-bootstrap`
+On `SessionStart` the shim compares the plugin's version with the app it can
+find. With no app, it starts `plugin/bin/unibrow-bootstrap <version>`; with an
+app older than the plugin (found through the relay link, which points into the
+bundle), it starts `unibrow-bootstrap <version> --update <app>`. Both run
 detached from the hook (new session via `setsid`, output to
-`~/Library/Logs/cc-unibrow-bootstrap.log`) and returns immediately. The
-bootstrap downloads `Unibrow.zip` for the plugin's own version from GitHub
-Releases, verifies the SHA-256 published next to it and the code signature,
-installs to `~/Applications` and starts the app. A lock directory keeps
-concurrent sessions from racing; a failure marker stops retries (and repeated
-announcements) for an hour. The release workflow builds the universal app on
-CI for every `v*` tag and refuses to publish if the tag, `VERSION` and
-`plugin.json` disagree.
+`~/Library/Logs/cc-unibrow-bootstrap.log`), so the hook returns immediately.
+
+The bootstrap downloads `Unibrow.zip` for exactly that version from GitHub
+Releases and installs it only if the SHA-256 published next to it, the code
+signature, the bundle ID and the version all match. A first install never
+writes over an existing app. An update only replaces a bundle with Unibrow's
+bundle ID and a lower version: it quits that copy if it runs (prompts waiting
+in the notch fall back to the terminal), swaps the bundles, puts the old one
+back if the copy fails, and starts the new app if the old one was running. A
+lock directory keeps concurrent sessions from racing; a failure marker stops
+retries (and repeated announcements) for an hour. `UNIBROW_NO_AUTO_UPDATE`
+and `UNIBROW_NO_AUTO_INSTALL` opt out.
+
+The release workflow builds the universal app on CI for every `v*` tag and
+refuses to publish if the tag, `VERSION` and `plugin.json` disagree. Bump the
+plugin's version only in the push that carries its tag, so no plugin version
+ever points at a release that isn't built yet.
 
 ## Wire protocol
 

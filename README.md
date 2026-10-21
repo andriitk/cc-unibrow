@@ -62,6 +62,10 @@ menu bar, and prompts start showing up in the notch.
 Prefer to install the app yourself? Set `UNIBROW_NO_AUTO_INSTALL=1` and use
 the installer below.
 
+No SSH key for GitHub on this Mac? Start Claude Code with
+`CLAUDE_CODE_PLUGIN_PREFER_HTTPS=1` for the install, so it fetches the plugin
+over HTTPS.
+
 </details>
 
 <details>
@@ -207,10 +211,18 @@ less to show.
 
 ## Update and uninstall
 
+**Updates.** Turn on auto-update once: in Claude Code open `/plugin` →
+**Marketplaces** → `cc-unibrow` → **Enable auto-update**. Or update by hand
+with `claude plugin update cc-unibrow@cc-unibrow`. Either way the app follows:
+when a session starts and the installed app is older than the plugin, the
+plugin downloads the matching release, checks it like the first install,
+quits the old app and starts the new one. Set `UNIBROW_NO_AUTO_UPDATE=1` to
+keep the app as it is. After an app update, re-enable **Exact Window Focus**
+in the menu if you use it (macOS ties the permission to each build).
+
 ```sh
-# update
-claude plugin update cc-unibrow@cc-unibrow
-curl -fsSL https://raw.githubusercontent.com/andriitk/cc-unibrow/main/install.sh | sh   # updates the app
+# update an app you built from source
+curl -fsSL https://raw.githubusercontent.com/andriitk/cc-unibrow/main/install.sh | sh
 
 # uninstall the app, its data and the plugin
 curl -fsSL https://raw.githubusercontent.com/andriitk/cc-unibrow/main/install.sh | sh -s -- --uninstall

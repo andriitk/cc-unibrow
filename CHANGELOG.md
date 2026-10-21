@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.1] - 2026-10-21
+
+### Added
+
+- The plugin keeps the app up to date: when a session starts and the installed
+  app is older than the plugin, it downloads the matching release, verifies it
+  like the first install (SHA-256, code signature, bundle ID, version), quits
+  the old app and starts the new one. It never downgrades and only replaces
+  Unibrow itself. Set `UNIBROW_NO_AUTO_UPDATE=1` to opt out.
+- Demo video, privacy policy and a plugin README for Anthropic's plugin
+  directory.
+
+### Changed
+
+- Hooks other than `SessionStart` reach the app with one less process.
+
 ## [0.2.0] - 2026-10-21
 
 ### Added
