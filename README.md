@@ -225,10 +225,27 @@ the install wrote to `~/.claude/settings.json`:
 ```
 
 (If `/plugin` → **Marketplaces** → `cc-unibrow` shows **Enable auto-update**,
-that does the same.) Or update by hand with
-`claude plugin update cc-unibrow@cc-unibrow`. Either way the app follows:
-when a session starts and the installed app is older than the plugin, the
-plugin downloads the matching release, checks it like the first install,
+that does the same.)
+
+**When an update arrives.** Auto-update is not instant. Claude Code checks
+only in an interactive session, at a random moment up to ten minutes after
+your first message, and the session keeps the plugin it started with. So a
+new release usually reaches you over one or two restarts:
+
+1. In session A, Claude Code downloads the new plugin in the background and
+   prints `Plugin updated: cc-unibrow · Run /reload-plugins to apply`.
+2. Run `/reload-plugins` or start a new session. The new plugin loads, and
+   at the next session start it updates the app.
+
+**Update now.** Run `/plugin` → **Marketplaces** → `cc-unibrow` →
+**Update marketplace** (or `claude plugin update cc-unibrow@cc-unibrow` in
+a shell), then `/reload-plugins` or start a new session. Note that
+`claude plugin marketplace update` alone only refreshes the listing and
+leaves the installed plugin as it is. To see which app version you have:
+`defaults read ~/Applications/Unibrow.app/Contents/Info.plist CFBundleShortVersionString`.
+
+**The app follows the plugin.** When a session starts and the installed app
+is older than the plugin, the plugin downloads the matching release, checks it like the first install,
 quits the old app and starts the new one. Set `UNIBROW_NO_AUTO_UPDATE=1` to
 keep the app as it is. After an app update, turn **Exact Window Focus** on
 again in the menu if you use it: macOS ties the permission to each build, so
