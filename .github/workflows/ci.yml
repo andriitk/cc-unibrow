@@ -8,11 +8,14 @@ on:
 jobs:
   test:
     runs-on: macos-15
+    # A hung test must fail fast instead of holding a runner for hours.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Swift version
         run: swift --version
       - name: Test
+        timeout-minutes: 5
         run: swift test
       - name: Build app bundle
         run: scripts/build-app.sh

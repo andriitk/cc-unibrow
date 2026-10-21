@@ -18,20 +18,27 @@ public enum GitBranch {
     /// The repository that contains `directory`, found by walking up to the
     /// folder with `.git`; `nil` outside a repository.
     public static func repository(containing directory: String, fileManager: FileManager = .default) -> Repository? {
-        guard !directory.isEmpty else { return nil }
-        var url = URL(filePath: directory, directoryHint: .isDirectory)
+        guard directory.hasPrefix("/") else { return nil }
 
-        // Walk up to the repository root; stop at the file-system root.
-        while true {
-            let dotGit = url.appending(path: ".git")
+        // Walk up plain path strings with an explicit stop at "/" and a hard
+        // cap. Not `URL.deletingLastPathComponent()`: at the root, some
+        // Foundation versions return "/.." instead of "/", which would make
+        // the loop endless outside a repository.
+        var path = (directory as NSString).standardizingPath
+        for _ in 0..<Self.maxDepth {
+            let dotGit = URL(filePath: path, directoryHint: .isDirectory).appending(path: ".git")
             if let head = headContents(dotGit: dotGit, fileManager: fileManager) {
-                return Repository(root: url.path(percentEncoded: false).trimmingTrailingSlash, branch: parse(head: head))
+                return Repository(root: path, branch: parse(head: head))
             }
-            let parent = url.deletingLastPathComponent()
-            if parent.path == url.path { return nil }
-            url = parent
+            if path == "/" { return nil }
+            path = (path as NSString).deletingLastPathComponent
+            if path.isEmpty { return nil }
         }
+        return nil
     }
+
+    /// Deeper than any real directory tree; only a safety net.
+    static let maxDepth = 256
 
     /// `ref: refs/heads/main` → `main`; a detached HEAD → its short hash.
     static func parse(head: String) -> String? {
@@ -59,11 +66,5 @@ public enum GitBranch {
             ? URL(filePath: path)
             : dotGit.deletingLastPathComponent().appending(path: path)
         return try? String(contentsOf: gitDir.appending(path: "HEAD"), encoding: .utf8)
-    }
-}
-
-private extension String {
-    var trimmingTrailingSlash: String {
-        count > 1 && hasSuffix("/") ? String(dropLast()) : self
     }
 }

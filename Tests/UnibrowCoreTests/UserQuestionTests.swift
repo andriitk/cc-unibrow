@@ -111,6 +111,14 @@ struct DisplayHelperTests {
         #expect(GitBranch.current(in: root.path) == nil)
     }
 
+    @Test("The repository walk always ends, even outside any repository", arguments: [
+        "/", "/nonexistent/deep/path/that/does/not/exist", "relative/path", "",
+    ])
+    func gitWalkTerminates(path: String) {
+        // Must return promptly. A walk that never reaches "/" would hang here.
+        #expect(GitBranch.repository(containing: path) == nil)
+    }
+
     @Test("Groups report how many sessions they contain")
     func sessionCount() {
         let queue = ApprovalQueue(requests: [
