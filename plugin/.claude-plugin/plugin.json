@@ -1,0 +1,13 @@
+{
+  "name": "cc-unibrow",
+  "version": "0.1.0",
+  "description": "Approve or deny Claude Code permission prompts from your MacBook notch. Requires the Unibrow app.",
+  "author": {
+    "name": "Andrii Tkachuk",
+    "url": "https://github.com/andriitk"
+  },
+  "homepage": "https://github.com/andriitk/cc-unibrow",
+  "repository": "https://github.com/andriitk/cc-unibrow",
+  "license": "MIT",
+  "keywords": ["notch", "dynamic-island", "permissions", "approvals", "macos"]
+}

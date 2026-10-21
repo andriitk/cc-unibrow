@@ -1,0 +1,36 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead. Screenshots help.
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "15.5"
+    validations:
+      required: true
+  - type: input
+    id: claude
+    attributes:
+      label: Claude Code version
+      description: Output of `claude --version`
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Where does Claude Code run?
+      placeholder: "Terminal / iTerm2 / Cursor / VS Code / PyCharm / Claude desktop app / tmux"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: "`log stream --predicate 'subsystem == \"dev.andriitk.unibrow\"'` while reproducing"
+      render: text

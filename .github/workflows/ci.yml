@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Swift version
+        run: swift --version
+      - name: Test
+        run: swift test
+      - name: Build app bundle
+        run: scripts/build-app.sh
+      - name: Validate plugin
+        run: |
+          python3 -m json.tool plugin/hooks/hooks.json > /dev/null
+          python3 -m json.tool plugin/.claude-plugin/plugin.json > /dev/null
+          python3 -m json.tool .claude-plugin/marketplace.json > /dev/null
