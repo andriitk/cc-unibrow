@@ -1,27 +1,47 @@
 name: Release
 
-# Pushing a tag like v0.2.0 builds a universal Unibrow.app and attaches it to
-# the GitHub release, where the plugin downloads it from on first run.
+# Merging a pull request that changes VERSION releases that version: this
+# builds a universal Unibrow.app, tags the merge commit v<VERSION> and attaches
+# the app to the GitHub release, where the plugin downloads it from. Nobody
+# pushes release tags by hand. Run it manually to rebuild the assets of the
+# current VERSION.
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+    paths: [VERSION]
+  workflow_dispatch:
 
 permissions:
   contents: write
+
+# Releases never overlap or get cancelled halfway.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
     runs-on: macos-15
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - name: Check that versions match the tag
+      - name: Read the version
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          version="${GITHUB_REF_NAME#v}"
-          test "$(cat VERSION)" = "$version" || { echo "VERSION is $(cat VERSION), tag is $version"; exit 1; }
+          version=$(cat VERSION)
           grep -q "\"version\": \"$version\"" plugin/.claude-plugin/plugin.json \
-            || { echo "plugin.json version does not match $version"; exit 1; }
+            || { echo "plugin.json version does not match VERSION $version"; exit 1; }
+          grep -q "^## \[$version\]" CHANGELOG.md \
+            || { echo "CHANGELOG.md has no section for $version"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          # A push may only release a new version; a manual run may rebuild one.
+          if [ "$GITHUB_EVENT_NAME" = push ] && gh release view "v$version" >/dev/null 2>&1; then
+            echo "v$version is already released"; exit 1
+          fi
 
       - name: Test
         timeout-minutes: 5
@@ -41,17 +61,19 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          version="${GITHUB_REF_NAME#v}"
           # This version's section of the changelog becomes the release notes.
-          awk -v v="$version" '
+          awk -v v="$VERSION" '
             $0 ~ "^## \\[" v "\\]" { found = 1; next }
             found && /^## \[/ { exit }
             found { print }
           ' CHANGELOG.md > notes.md
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" build/Unibrow.zip build/Unibrow.zip.sha256 --clobber
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" build/Unibrow.zip build/Unibrow.zip.sha256 --clobber
           else
-            gh release create "$GITHUB_REF_NAME" build/Unibrow.zip build/Unibrow.zip.sha256 \
-              --title "Unibrow $version" --notes-file notes.md
+            # Creates the tag on the commit that was built.
+            gh release create "$TAG" build/Unibrow.zip build/Unibrow.zip.sha256 \
+              --target "$GITHUB_SHA" --title "Unibrow $VERSION" --notes-file notes.md
           fi

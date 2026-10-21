@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.4] - 2026-10-22
+
+### Fixed
+
+- A plugin update that arrives while its release is still being built no
+  longer blocks the app update for an hour. The plugin keeps the current app
+  and tries again at the next session.
+
+### Changed
+
+- Releases are cut by merging a version bump into `main`; CI tags and
+  publishes them. The contributing guide describes the pull request flow.
+
 ## [0.2.3] - 2026-10-22
 
 ### Fixed

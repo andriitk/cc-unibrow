@@ -76,7 +76,18 @@ trap cleanup EXIT
 
 base="https://github.com/${repo}/releases/download/v${version}"
 log "Downloading Unibrow ${version} from ${base}"
-curl -fsSL --retry 2 --max-time 120 -o "$work/Unibrow.zip" "$base/Unibrow.zip"
+# The plugin reaches users as soon as its version lands on main, while the
+# release workflow is still building the app. A 404 means "not yet": keep the
+# current app, set no failure marker, and try again at the next session.
+code=$(curl -sSL --retry 2 --max-time 120 -o "$work/Unibrow.zip" -w '%{http_code}' "$base/Unibrow.zip")
+if [ "$code" = "404" ]; then
+    log "Release v${version} is not published yet; will try again at the next session"
+    exit 0
+fi
+if [ "$code" != "200" ]; then
+    log "Download failed with HTTP ${code}; not installing"
+    exit 1
+fi
 curl -fsSL --retry 2 --max-time 30 -o "$work/Unibrow.zip.sha256" "$base/Unibrow.zip.sha256"
 
 expected=$(cut -d ' ' -f 1 < "$work/Unibrow.zip.sha256")
