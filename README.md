@@ -19,6 +19,8 @@ in one list that grows out of the notch. Hover, read, click. Never switch window
 
 </div>
 
+https://github.com/user-attachments/assets/ea03c975-a00d-4885-ab48-418b29f94148
+
 ---
 
 ## Why
