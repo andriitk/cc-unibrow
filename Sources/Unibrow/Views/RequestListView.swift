@@ -92,7 +92,7 @@ private struct ProjectHeader: View {
                 .font(.system(size: 11, weight: .semibold))
                 .lineLimit(1)
             if count > 1 {
-                Text("\(count)")
+                Text("(\(count))")
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(.white.opacity(0.45))
@@ -144,9 +144,8 @@ private struct FinishedSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
+            // No check here: the wing and every row already show one.
             HStack(spacing: 6) {
-                Image(systemName: "checkmark.circle")
-                    .font(.system(size: 10, weight: .semibold))
                 Text("Finished")
                     .font(.system(size: 11, weight: .semibold))
                 Text("nothing to do")
