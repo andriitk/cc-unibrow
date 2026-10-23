@@ -15,7 +15,7 @@ in one list that grows out of the notch. Hover, read, click. Never switch window
 ![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-D97757)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-[Install](#install) · [How to use](#how-to-use) · [FAQ](#faq) · [How it works](docs/ARCHITECTURE.md)
+**[Website](https://andriitk.github.io/cc-unibrow/)** · [Install](#install) · [How to use](#how-to-use) · [FAQ](#faq) · [How it works](docs/ARCHITECTURE.md)
 
 </div>
 
