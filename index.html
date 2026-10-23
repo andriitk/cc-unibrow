@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unibrow — Approve Claude Code from your MacBook notch</title>
+<meta name="description" content="Every permission prompt, question, plan and “done” from all your Claude Code sessions, in one list that grows out of the MacBook notch. Free, open source, local only.">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
+<link rel="canonical" href="https://andriitk.github.io/cc-unibrow/">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Unibrow — Approve Claude Code from your MacBook notch">
+<meta property="og:description" content="Every prompt from every Claude Code session, in the one place on screen you always see. Free and open source.">
+<meta property="og:url" content="https://andriitk.github.io/cc-unibrow/">
+<meta property="og:image" content="https://andriitk.github.io/cc-unibrow/assets/og.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://andriitk.github.io/cc-unibrow/assets/og.jpg">
+<style>
+:root {
+  --bg: #000;
+  --bg-raised: #0b0b0d;
+  --card: #111114;
+  --card-hi: #18181c;
+  --line: rgba(255,255,255,.08);
+  --line-hi: rgba(255,255,255,.14);
+  --text: #f5f5f7;
+  --text-2: #a1a1aa;
+  --text-3: #71717a;
+  --brand: #f89a22;
+  --brand-deep: #e8801a;
+  --brand-glow: rgba(248,154,34,.35);
+  --ok: #4ade80;
+  --deny: #f87171;
+  --radius: 20px;
+  --radius-sm: 12px;
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, "JetBrains Mono", Consolas, monospace;
+  --ease-out: cubic-bezier(.22,1,.36,1);
+  --ease-spring: cubic-bezier(.34,1.4,.64,1);
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 17px/1.55 var(--sans); -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+img, video, svg { display: block; max-width: 100%; }
+a { color: inherit; text-decoration: none; }
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; border-radius: 8px; }
+.wrap { width: min(1120px, 100% - 32px); margin-inline: auto; }
+.icon { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- Nav ---------- */
+.nav {
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(0,0,0,.72); backdrop-filter: saturate(180%) blur(18px); -webkit-backdrop-filter: saturate(180%) blur(18px);
+  border-bottom: 1px solid var(--line);
+}
+.nav .wrap { display: flex; align-items: center; gap: 24px; height: 56px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 650; letter-spacing: -.01em; }
+.brand img { width: 26px; height: 26px; border-radius: 7px; }
+.nav-links { display: flex; gap: 22px; margin-left: auto; font-size: 14px; color: var(--text-2); }
+.nav-links a { transition: color .2s; }
+.nav-links a:hover { color: var(--text); }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 44px; padding: 0 18px; border-radius: 999px; border: 0; cursor: pointer;
+  font: 600 15px/1 var(--sans); transition: transform .2s var(--ease-out), background .2s, box-shadow .2s;
+}
+.btn:active { transform: scale(.97); }
+.btn-primary { background: var(--text); color: #000; }
+.btn-primary:hover { background: #fff; box-shadow: 0 0 0 6px rgba(255,255,255,.08); }
+.btn-ghost { background: rgba(255,255,255,.07); color: var(--text); border: 1px solid var(--line-hi); }
+.btn-ghost:hover { background: rgba(255,255,255,.12); }
+.nav .btn { min-height: 36px; padding: 0 14px; font-size: 14px; }
+
+/* ---------- Hero ---------- */
+.hero { position: relative; padding: 88px 0 40px; text-align: center; isolation: isolate; }
+.hero::before {
+  content: ""; position: absolute; inset: -120px 0 auto; height: 720px; z-index: -1;
+  background:
+    radial-gradient(600px 300px at 50% 18%, rgba(248,154,34,.20), transparent 70%),
+    radial-gradient(900px 500px at 50% 0%, rgba(120,90,255,.10), transparent 70%);
+}
+.pill {
+  display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 8px;
+  border: 1px solid var(--line-hi); border-radius: 999px; background: rgba(255,255,255,.04);
+  font-size: 13px; color: var(--text-2);
+}
+.pill b { color: #000; background: var(--brand); font-weight: 650; padding: 2px 8px; border-radius: 999px; font-size: 12px; }
+h1 {
+  margin: 22px auto 0; max-width: 14ch;
+  font-size: clamp(44px, 8vw, 92px); line-height: 1.02; letter-spacing: -.045em; font-weight: 750;
+  text-wrap: balance;
+}
+h1 .grad {
+  background: linear-gradient(180deg, #fff 30%, #9a9aa3);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+h1 .accent { color: var(--brand); }
+.lede { margin: 22px auto 0; max-width: 620px; font-size: clamp(17px, 2.1vw, 20px); color: var(--text-2); text-wrap: pretty; }
+.install {
+  margin: 34px auto 0; max-width: 720px;
+  display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 18px;
+  background: var(--bg-raised); border: 1px solid var(--line-hi); border-radius: 16px;
+  box-shadow: 0 20px 60px -20px rgba(248,154,34,.25);
+}
+.install code {
+  flex: 1; min-width: 0; text-align: left; font: 14px/1.4 var(--mono); color: var(--text);
+  overflow-x: auto; white-space: nowrap; scrollbar-width: none; padding: 8px 0;
+}
+.install code::-webkit-scrollbar { display: none; }
+.install code .p { color: var(--brand); user-select: none; }
+.copy { min-height: 40px; padding: 0 14px; font-size: 14px; border-radius: 10px; }
+.copy[data-done] { background: var(--ok); color: #000; }
+.hint { margin-top: 12px; font-size: 14px; color: var(--text-3); }
+.cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 26px; }
+
+/* ---------- Notch stage ---------- */
+.stage-wrap { margin-top: 64px; perspective: 1600px; }
+.stage {
+  position: relative; margin-inline: auto; width: min(980px, 100%); aspect-ratio: 16 / 9.4;
+  border-radius: 22px 22px 14px 14px; overflow: hidden;
+  border: 1px solid var(--line-hi);
+  background:
+    radial-gradient(70% 90% at 20% 100%, #3b1f6e 0%, transparent 60%),
+    radial-gradient(60% 80% at 90% 90%, #1d2b6b 0%, transparent 60%),
+    linear-gradient(180deg, #0c0c18, #151432);
+  box-shadow: 0 50px 120px -30px rgba(0,0,0,.9), 0 0 0 10px #0d0d0f, 0 0 0 11px #26262a;
+  transform: rotateX(8deg); transform-origin: 50% 0;
+  transition: transform 1s var(--ease-out);
+}
+.stage.in { transform: rotateX(0); }
+.menubar {
+  position: absolute; inset: 0 0 auto; height: 30px; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 16px; font-size: 12px; color: rgba(255,255,255,.75); background: rgba(0,0,0,.25);
+}
+.menubar .l, .menubar .r { display: flex; gap: 16px; align-items: center; }
+.menubar .l b { font-weight: 650; }
+.mb-brow { width: 22px; height: 16px; }
+.win {
+  position: absolute; background: rgba(20,20,24,.92); border: 1px solid rgba(255,255,255,.08); border-radius: 10px;
+  box-shadow: 0 20px 50px rgba(0,0,0,.5); padding: 30px 14px 12px; text-align: left; font: 11px/1.6 var(--mono); color: rgba(255,255,255,.45);
+}
+.win::before {
+  content: ""; position: absolute; top: 11px; left: 12px; width: 8px; height: 8px; border-radius: 50%;
+  background: #ff5f57; box-shadow: 14px 0 #febc2e, 28px 0 #28c840;
+}
+.win .t { position: absolute; top: 7px; left: 0; right: 0; text-align: center; font: 11px var(--sans); color: rgba(255,255,255,.4); }
+.win .hl { color: rgba(255,255,255,.8); }
+.win .wait { color: var(--brand); }
+.w1 { left: 4%; top: 14%; width: 40%; height: 46%; }
+.w2 { right: 4%; top: 20%; width: 38%; height: 40%; }
+.w3 { left: 24%; top: 52%; width: 44%; height: 40%; }
+
+.island {
+  --w: 460px; --cw: 210px; --ch: 32px;
+  position: absolute; top: 0; left: 50%; width: var(--w); translate: -50% 0; z-index: 5;
+  background: #000; border-radius: 0 0 26px 26px;
+  clip-path: inset(0 calc((var(--w) - var(--cw)) / 2) calc(100% - var(--ch)) calc((var(--w) - var(--cw)) / 2) round 0 0 14px 14px);
+  transition: clip-path .55s var(--ease-out);
+  box-shadow: 0 30px 60px rgba(0,0,0,.6);
+  cursor: default;
+}
+.island.open { clip-path: inset(0 0 0 0 round 0 0 26px 26px); transition-timing-function: var(--ease-spring); }
+.wings {
+  position: relative; height: var(--ch); display: flex; align-items: center; justify-content: space-between;
+  padding-inline: calc((var(--w) - var(--cw)) / 2 + 12px);
+  transition: padding .55s var(--ease-out);
+}
+.island.open .wings { padding-inline: 18px; }
+.wing-l { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+.wing-l .label { opacity: 0; transition: opacity .3s; white-space: nowrap; }
+.island.open .wing-l .label { opacity: 1; transition-delay: .15s; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 0 var(--brand-glow); }
+.island[data-state="ask"] .dot { animation: pulse 1.6s infinite; }
+.done { width: 13px; height: 13px; color: var(--ok); display: none; }
+.island[data-state="done"] .dot { display: none; }
+.island[data-state="done"] .done { display: block; }
+.count {
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--brand); color: #000;
+  font: 700 11px/18px var(--sans); text-align: center; transition: opacity .25s, transform .3s var(--ease-spring);
+}
+.island[data-state="done"] .count { opacity: 0; transform: scale(.5); }
+.panel { padding: 4px 12px 14px; opacity: 0; transform: translateY(-6px); transition: opacity .25s, transform .35s var(--ease-out); }
+.island.open .panel { opacity: 1; transform: none; transition-delay: .12s; }
+.proj { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: rgba(255,255,255,.55); padding: 4px 6px 8px; }
+.proj .icon { width: 11px; height: 11px; }
+.req { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.06); border-radius: 14px; padding: 12px; text-align: left; }
+.req-h { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.req-h .ti { color: var(--brand); width: 14px; height: 14px; }
+.req-h b { font-weight: 650; }
+.chip { display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px; border-radius: 999px; background: rgba(255,255,255,.08); color: rgba(255,255,255,.55); font-size: 10px; font-weight: 500; white-space: nowrap; }
+.chip .icon { width: 9px; height: 9px; }
+.req-h .app { margin-left: auto; color: rgba(255,255,255,.55); font-size: 11px; display: inline-flex; gap: 2px; align-items: center; }
+.req-h .age { color: rgba(255,255,255,.4); font-size: 10px; margin-left: 6px; }
+.req-body { margin: 10px 0 4px; font: 12.5px/1.45 var(--mono); color: #fff; word-break: break-word; }
+.req-sub { font-size: 11px; color: rgba(255,255,255,.5); }
+.opts { display: grid; gap: 5px; margin-top: 8px; }
+.opt { display: flex; align-items: center; gap: 8px; padding: 6px 9px; border-radius: 9px; background: rgba(255,255,255,.05); font-size: 12px; }
+.opt i { width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,.4); flex: none; }
+.opt.sel { background: rgba(74,222,128,.10); outline: 1px solid rgba(74,222,128,.6); }
+.opt.sel i { border-color: var(--ok); background: radial-gradient(circle, var(--ok) 0 40%, transparent 45%); }
+.acts { display: flex; justify-content: flex-end; gap: 6px; margin-top: 10px; }
+.a { padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; transition: transform .15s, box-shadow .2s, filter .2s; }
+.a-deny { background: rgba(248,113,113,.16); color: var(--deny); }
+.a-q { background: rgba(255,255,255,.1); color: #fff; }
+.a-ok { background: #6fd67a; color: #04210c; }
+.a.press { transform: scale(.92); box-shadow: 0 0 0 6px rgba(111,214,122,.25); filter: brightness(1.1); }
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 var(--brand-glow); }
+  70% { box-shadow: 0 0 0 9px rgba(248,154,34,0); }
+  100% { box-shadow: 0 0 0 0 rgba(248,154,34,0); }
+}
+
+/* ---------- Sections ---------- */
+section { padding: 120px 0; }
+.eyebrow { font-size: 13px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--brand); }
+h2 { margin: 12px 0 0; font-size: clamp(34px, 5vw, 56px); line-height: 1.06; letter-spacing: -.035em; font-weight: 720; text-wrap: balance; }
+.sub { margin-top: 18px; max-width: 620px; color: var(--text-2); font-size: 19px; text-wrap: pretty; }
+.center { text-align: center; }
+.center .sub { margin-inline: auto; }
+
+.problem { padding: 100px 0 40px; }
+.problem p.big {
+  margin: 0; font-size: clamp(32px, 5.4vw, 64px); line-height: 1.1; letter-spacing: -.035em; font-weight: 720; text-align: center; text-wrap: balance;
+}
+.problem .dim { color: #55555c; }
+.problem .warm { color: var(--brand); }
+
+.demo { padding-top: 60px; }
+.video {
+  margin-top: 48px; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line-hi);
+  background: #000; box-shadow: 0 40px 100px -40px rgba(248,154,34,.35);
+}
+.video video { width: 100%; height: auto; aspect-ratio: 16 / 9; }
+
+/* Bento */
+.bento { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-top: 56px; }
+.tile {
+  position: relative; grid-column: span 2; padding: 28px; border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--card-hi), var(--card)); border: 1px solid var(--line);
+  overflow: hidden; transition: border-color .3s, transform .4s var(--ease-out);
+}
+.tile:hover { border-color: var(--line-hi); transform: translateY(-2px); }
+.tile.wide { grid-column: span 4; }
+.tile.half { grid-column: span 3; }
+.tile h3 { margin: 14px 0 6px; font-size: 21px; letter-spacing: -.02em; font-weight: 650; }
+.tile p { margin: 0; color: var(--text-2); font-size: 15.5px; }
+.ti-badge {
+  width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
+  background: rgba(248,154,34,.12); color: var(--brand); font-size: 20px;
+}
+.ti-badge.ok { background: rgba(74,222,128,.12); color: var(--ok); }
+.tile .mock { margin-top: 22px; }
+.tile .req { background: rgba(0,0,0,.45); }
+.apps { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.apps span { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line-hi); font-size: 13px; color: var(--text-2); }
+.fin {
+  display: flex; gap: 10px; align-items: flex-start; margin-top: 22px; padding: 10px 12px; border-radius: 12px; background: rgba(0,0,0,.45);
+  font-size: 12px; text-align: left;
+}
+.fin .done { display: block; margin-top: 2px; }
+.fin b { font-weight: 650; }
+.fin .s { color: rgba(255,255,255,.55); margin-top: 2px; }
+
+/* Trust */
+.trust { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 56px; }
+.trust div { padding: 26px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--bg-raised); }
+.trust .icon { width: 24px; height: 24px; color: var(--ok); }
+.trust h3 { margin: 16px 0 6px; font-size: 18px; font-weight: 650; letter-spacing: -.015em; }
+.trust p { margin: 0; color: var(--text-2); font-size: 15px; }
+
+/* Steps */
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 56px; counter-reset: s; }
+.step { padding: 28px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--bg-raised); }
+.step::before {
+  counter-increment: s; content: counter(s);
+  display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%;
+  background: var(--text); color: #000; font-weight: 700; font-size: 15px;
+}
+.step h3 { margin: 18px 0 6px; font-size: 19px; font-weight: 650; letter-spacing: -.015em; }
+.step p { margin: 0; color: var(--text-2); font-size: 15px; }
+.step code { font: 13px var(--mono); color: var(--text); background: rgba(255,255,255,.07); padding: 2px 6px; border-radius: 6px; }
+
+/* FAQ */
+.faq { max-width: 760px; margin: 48px auto 0; }
+details { border-bottom: 1px solid var(--line); }
+summary {
+  list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  min-height: 64px; font-size: 18px; font-weight: 600; letter-spacing: -.01em;
+}
+summary::-webkit-details-marker { display: none; }
+summary .icon { width: 18px; height: 18px; color: var(--text-3); transition: transform .3s var(--ease-out); }
+details[open] summary .icon { transform: rotate(45deg); }
+details p { margin: 0 0 22px; color: var(--text-2); font-size: 16px; }
+details code { font: 14px var(--mono); color: var(--text); }
+
+/* Final CTA */
+.final { position: relative; text-align: center; padding: 140px 0; isolation: isolate; }
+.final::before {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  background: radial-gradient(500px 260px at 50% 55%, rgba(248,154,34,.18), transparent 70%);
+}
+.final img { width: 96px; height: 96px; margin: 0 auto 26px; border-radius: 22px; box-shadow: 0 20px 60px rgba(248,154,34,.25); }
+
+footer { border-top: 1px solid var(--line); padding: 32px 0 48px; color: var(--text-3); font-size: 14px; }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: space-between; }
+footer nav { display: flex; gap: 20px; flex-wrap: wrap; }
+footer a:hover { color: var(--text); }
+
+/* Reveal on scroll */
+.reveal { opacity: 0; transform: translateY(24px); transition: opacity .8s var(--ease-out), transform .8s var(--ease-out); }
+.reveal.in { opacity: 1; transform: none; }
+
+@media (max-width: 900px) {
+  .bento { grid-template-columns: 1fr 1fr; }
+  .tile, .tile.wide, .tile.half { grid-column: span 2; }
+  .trust { grid-template-columns: 1fr 1fr; }
+  .steps { grid-template-columns: 1fr; }
+  .nav-links { display: none; }
+  .nav .btn { margin-left: auto; }
+}
+@media (max-width: 640px) {
+  section { padding: 84px 0; }
+  .hero { padding-top: 56px; }
+  .trust { grid-template-columns: 1fr; }
+  .stage { aspect-ratio: 3 / 4; }
+  .win { display: none; }
+  .w1 { display: block; left: 6%; top: 52%; width: 88%; height: 40%; }
+  .island { --w: min(92%, 420px); --cw: 150px; }
+  .tile { padding: 22px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  .reveal { opacity: 1; transform: none; }
+  .stage { transform: none; }
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-terminal" viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></symbol>
+  <symbol id="i-question" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-plan" viewBox="0 0 24 24"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></symbol>
+  <symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></symbol>
+  <symbol id="i-branch" viewBox="0 0 24 24"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="i-user-check" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></symbol>
+  <symbol id="i-github" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.82-.26.82-.57v-2.03c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.74.08-.73.08-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22v3.29c0 .32.21.69.82.57A12 12 0 0 0 12 .3"/></symbol>
+</svg>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="Unibrow home"><img src="assets/icon-256.png" alt="" width="26" height="26">Unibrow</a>
+    <nav class="nav-links" aria-label="Sections">
+      <a href="#demo">Demo</a><a href="#features">Features</a><a href="#privacy">Privacy</a><a href="#faq">FAQ</a>
+    </nav>
+    <a class="btn btn-ghost" href="https://github.com/andriitk/cc-unibrow"><svg class="icon"><use href="#i-github"/></svg>GitHub</a>
+  </div>
+</header>
+
+<main id="top">
+
+<!-- Hero -->
+<div class="hero">
+  <div class="wrap">
+    <span class="pill"><b>Free</b>Open source · macOS 14+ · Claude Code plugin</span>
+    <h1><span class="grad">Approve Claude Code from your</span> <span class="accent">notch.</span></h1>
+    <p class="lede">Every permission prompt, question, plan and “done” from all your Claude Code sessions, in one list that grows out of the MacBook notch. Hover, read, click. Never switch windows.</p>
+
+    <div class="install" role="group" aria-label="Install command">
+      <code><span class="p">❯ </span><span class="cmd">/plugin install cc-unibrow --marketplace andriitk/cc-unibrow</span></code>
+      <button class="btn btn-primary copy" type="button" data-copy><svg class="icon"><use href="#i-copy"/></svg><span>Copy</span></button>
+    </div>
+    <p class="hint">Paste it into Claude Code. The app downloads, verifies and starts itself.</p>
+
+    <div class="stage-wrap">
+      <div class="stage" id="stage">
+        <p class="sr">Animated illustration: a Claude Code permission request appears in the MacBook notch and is approved with one click.</p>
+        <div class="menubar" aria-hidden="true">
+          <div class="l"><b>Terminal</b><span>Shell</span><span>Edit</span><span>View</span><span>Window</span></div>
+          <div class="r">
+            <svg class="mb-brow" viewBox="0 0 22 16" aria-hidden="true"><g fill="#fff"><path d="M1.5 6.8C3 4.2 4.8 2.5 7 2.4C9 2.3 10 3.2 11 3.3C12 3.2 13 2.3 15 2.4C17.2 2.5 19 4.2 20.5 6.8C18.8 5.4 17 4.6 15 4.6C13.2 4.6 12 5.2 11 5.2C10 5.2 8.8 4.6 7 4.6C5 4.6 3.2 5.4 1.5 6.8Z"/><circle cx="7" cy="10.9" r="1.9"/><circle cx="15" cy="10.9" r="1.9"/></g></svg>
+            <span>Thu 9:41</span>
+          </div>
+        </div>
+        <div class="win w1" aria-hidden="true"><span class="t">payments-api — claude</span>
+          <div>&gt; add VAT fields to invoices</div><div class="hl">● Bash(npm run db:migrate -- --env staging)</div><div class="wait">  Do you want to proceed?</div>
+        </div>
+        <div class="win w2" aria-hidden="true"><span class="t">aurora-web — claude</span>
+          <div>&gt; build the dashboard charts</div><div class="hl">● Reading src/charts/index.ts</div><div>  ✻ Thinking…</div>
+        </div>
+        <div class="win w3" aria-hidden="true"><span class="t">ml-pipeline — claude</span>
+          <div>&gt; plan how to speed up the evaluator</div><div class="hl">● Plan ready</div><div>  Waiting for approval</div>
+        </div>
+
+        <div class="island" id="island" data-state="ask" aria-hidden="true">
+          <div class="wings">
+            <div class="wing-l">
+              <span class="dot"></span>
+              <svg class="icon done"><use href="#i-check-circle"/></svg>
+              <span class="label">Claude Code</span>
+            </div>
+            <span class="count" id="count">1</span>
+          </div>
+          <div class="panel" id="panel"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Problem -->
+<div class="problem">
+  <div class="wrap reveal">
+    <p class="big">Five Claude Code sessions. <span class="dim">Three projects.</span> <span class="warm">One has been waiting for you for two minutes.</span></p>
+  </div>
+</div>
+
+<!-- Demo -->
+<section class="demo" id="demo">
+  <div class="wrap center reveal">
+    <div class="eyebrow">See it in action</div>
+    <h2>The one place on screen you always see.</h2>
+    <p class="sub">A pulsing dot means Claude needs you. Hover to see what, and answer right there. The terminal keeps working exactly as before.</p>
+    <div class="video">
+      <video id="video" src="assets/demo.mp4" poster="assets/poster.jpg" muted playsinline loop preload="metadata" controls aria-label="Unibrow demo video, 37 seconds, no sound"></video>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section id="features">
+  <div class="wrap">
+    <div class="center reveal">
+      <div class="eyebrow">What shows up</div>
+      <h2>Everything Claude asks you. Nothing else.</h2>
+      <p class="sub">Requests from every session, grouped by project, each with the branch, session and app it came from.</p>
+    </div>
+
+    <div class="bento">
+      <article class="tile wide reveal">
+        <div class="ti-badge"><svg class="icon"><use href="#i-terminal"/></svg></div>
+        <h3>Permission requests</h3>
+        <p>The exact command, or a diff of the edit. Allow once, Always, or Deny. <em>Details</em> shows the full input, never shortened.</p>
+        <div class="mock">
+          <div class="req">
+            <div class="req-h"><svg class="icon ti"><use href="#i-terminal"/></svg><b>Bash</b>
+              <span class="chip"><svg class="icon"><use href="#i-branch"/></svg>main</span><span class="chip">a3f1</span>
+              <span class="app">Terminal <svg class="icon" style="width:10px;height:10px"><use href="#i-arrow"/></svg></span><span class="age">12s</span></div>
+            <div class="req-body">npm run db:migrate -- --env staging</div>
+            <div class="req-sub">Apply the invoice VAT migration on staging</div>
+            <div class="acts"><span class="a a-deny">Deny</span><span class="a a-q">Always</span><span class="a a-ok">Allow</span></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="tile reveal">
+        <div class="ti-badge"><svg class="icon"><use href="#i-question"/></svg></div>
+        <h3>Questions</h3>
+        <p>Pick one or more options, or type your own answer.</p>
+        <div class="mock">
+          <div class="opts">
+            <div class="opt"><i></i>Recharts</div>
+            <div class="opt sel"><i></i>visx</div>
+            <div class="opt"><i></i>Other…</div>
+          </div>
+        </div>
+      </article>
+
+      <article class="tile reveal">
+        <div class="ti-badge"><svg class="icon"><use href="#i-plan"/></svg></div>
+        <h3>Plans</h3>
+        <p>A plan from plan mode is ready. Approve to start, or Keep Planning to ask for changes.</p>
+        <div class="acts" style="justify-content:flex-start;margin-top:22px"><span class="a a-q">Keep Planning</span><span class="a a-ok">Approve</span></div>
+      </article>
+
+      <article class="tile reveal">
+        <div class="ti-badge ok"><svg class="icon"><use href="#i-check-circle"/></svg></div>
+        <h3>Finished</h3>
+        <p>A quiet green row when a session completes its turn. No sound, no number.</p>
+        <div class="fin">
+          <svg class="icon done"><use href="#i-check-circle"/></svg>
+          <div><b>aurora-web</b> <span class="chip">feature/charts</span><div class="s">Added the visx line chart and tests…</div></div>
+        </div>
+      </article>
+
+      <article class="tile reveal">
+        <div class="ti-badge"><svg class="icon"><use href="#i-arrow"/></svg></div>
+        <h3>Jump to the session</h3>
+        <p>Click <b>Cursor ↗</b>, <b>Terminal ↗</b> or <b>PyCharm ↗</b> to land in the right window, even with ten open.</p>
+      </article>
+
+      <article class="tile half reveal">
+        <div class="ti-badge"><svg class="icon"><use href="#i-terminal"/></svg></div>
+        <h3>Works where Claude Code runs</h3>
+        <p>Any terminal, the terminals inside IDEs, and the Claude desktop app.</p>
+        <div class="apps"><span>Terminal</span><span>iTerm2</span><span>Ghostty</span><span>Warp</span><span>tmux</span><span>Cursor</span><span>VS Code</span><span>JetBrains</span><span>Claude app</span></div>
+      </article>
+
+      <article class="tile half reveal">
+        <div class="ti-badge"><svg class="icon"><use href="#i-pause"/></svg></div>
+        <h3>Steps aside when you want</h3>
+        <p>Pause from the menu bar and every prompt goes back to the terminal. The eyebrow closes its eyes. Works with or without a notch, and on external displays.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- Privacy & trust -->
+<section id="privacy">
+  <div class="wrap">
+    <div class="center reveal">
+      <div class="eyebrow">Built to be trusted</div>
+      <h2>It never decides for you.</h2>
+      <p class="sub">Unibrow shows requests and passes your answer back. That’s the whole job.</p>
+    </div>
+    <div class="trust">
+      <div class="reveal"><svg class="icon"><use href="#i-user-check"/></svg><h3>No auto-approve</h3><p>There is no mode that approves on its own. Every Allow is your click.</p></div>
+      <div class="reveal"><svg class="icon"><use href="#i-terminal"/></svg><h3>The terminal still works</h3><p>Answer in either place. Quit or pause Unibrow and Claude Code asks in the terminal as always.</p></div>
+      <div class="reveal"><svg class="icon"><use href="#i-lock"/></svg><h3>Nothing leaves your Mac</h3><p>No network code, no analytics, no account. A private local socket only your user can open.</p></div>
+      <div class="reveal"><svg class="icon"><use href="#i-shield"/></svg><h3>Verified install</h3><p>The app comes from this project’s GitHub Releases, checked by SHA-256 and code signature.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- How -->
+<section id="how">
+  <div class="wrap">
+    <div class="center reveal">
+      <div class="eyebrow">Setup</div>
+      <h2>One line. About a minute.</h2>
+    </div>
+    <div class="steps">
+      <div class="step reveal"><h3>Paste one line</h3><p>Copy the install command above and run it in Claude Code. No Homebrew, no Xcode.</p></div>
+      <div class="step reveal"><h3>Unibrow arrives</h3><p>Next time a session starts, the plugin downloads the app, verifies it and starts it. The eyebrow appears in the menu bar.</p></div>
+      <div class="step reveal"><h3>Answer from the notch</h3><p>Hover when the dot pulses. Read, click, keep working. Restart sessions that were open before the install.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq">
+  <div class="wrap">
+    <div class="center reveal"><div class="eyebrow">FAQ</div><h2>Questions, answered.</h2></div>
+    <div class="faq">
+      <details><summary>Is my code sent anywhere?<svg class="icon"><use href="#i-plus"/></svg></summary>
+        <p>No. Unibrow has no network code, no analytics and no account. Hook data goes over a private local socket to the app on the same Mac and stays in memory.</p></details>
+      <details><summary>Does it need special permissions?<svg class="icon"><use href="#i-plus"/></svg></summary>
+        <p>No. It never reads your project files, so macOS never asks about Documents or Desktop. Accessibility is only for the optional Exact Window Focus, which raises the exact window of a session.</p></details>
+      <details><summary>Does it slow Claude Code down?<svg class="icon"><use href="#i-plus"/></svg></summary>
+        <p>No. Hooks that only report events run in the background and finish in milliseconds.</p></details>
+      <details><summary>Where does it work?<svg class="icon"><use href="#i-plus"/></svg></summary>
+        <p>Wherever Claude Code runs on your Mac. Not in cloud sessions or over SSH, where Claude Code runs on another machine.</p></details>
+      <details><summary>Can I use it only in some projects?<svg class="icon"><use href="#i-plus"/></svg></summary>
+        <p>Yes. Install the plugin per project with <code>claude plugin install cc-unibrow@cc-unibrow --scope project</code>.</p></details>
+      <details><summary>How much does it cost?<svg class="icon"><use href="#i-plus"/></svg></summary>
+        <p>Nothing. Unibrow is free and open source under the MIT license.</p></details>
+    </div>
+  </div>
+</section>
+
+<!-- Final CTA -->
+<div class="final">
+  <div class="wrap reveal">
+    <img src="assets/icon-256.png" alt="Unibrow app icon" width="96" height="96" loading="lazy">
+    <h2>Give your notch a job.</h2>
+    <p class="sub" style="margin-inline:auto">Free, open source, and one line away.</p>
+    <div class="install">
+      <code><span class="p">❯ </span><span class="cmd">/plugin install cc-unibrow --marketplace andriitk/cc-unibrow</span></code>
+      <button class="btn btn-primary copy" type="button" data-copy><svg class="icon"><use href="#i-copy"/></svg><span>Copy</span></button>
+    </div>
+    <div class="cta-row">
+      <a class="btn btn-ghost" href="https://github.com/andriitk/cc-unibrow"><svg class="icon"><use href="#i-github"/></svg>Star on GitHub</a>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Unibrow · MIT · Made by <a href="https://github.com/andriitk">andriitk</a>. Not affiliated with Anthropic.</span>
+    <nav aria-label="Footer">
+      <a href="https://github.com/andriitk/cc-unibrow">Source</a>
+      <a href="https://github.com/andriitk/cc-unibrow/blob/main/PRIVACY.md">Privacy</a>
+      <a href="https://github.com/andriitk/cc-unibrow/issues">Issues</a>
+      <a href="https://github.com/andriitk/cc-unibrow/releases">Releases</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+(() => {
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const svg = id => `<svg class="icon"><use href="#${id}"/></svg>`;
+
+  // Copy buttons
+  document.querySelectorAll('[data-copy]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const text = btn.parentElement.querySelector('.cmd').textContent;
+      try { await navigator.clipboard.writeText(text); }
+      catch {
+        const r = document.createRange(); r.selectNodeContents(btn.parentElement.querySelector('.cmd'));
+        const s = getSelection(); s.removeAllRanges(); s.addRange(r); document.execCommand('copy'); s.removeAllRanges();
+      }
+      const label = btn.querySelector('span');
+      btn.dataset.done = ''; label.textContent = 'Copied';
+      setTimeout(() => { delete btn.dataset.done; label.textContent = 'Copy'; }, 1800);
+    });
+  });
+
+  // Reveal on scroll
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+  }), { threshold: .15 });
+  document.querySelectorAll('.reveal, #stage').forEach(el => io.observe(el));
+
+  // Demo video: play only while visible, never under reduced motion
+  const video = document.getElementById('video');
+  if (!reduce) {
+    new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) video.play().catch(() => {}); else video.pause();
+    }, { threshold: .5 }).observe(video);
+  }
+
+  // Notch demo
+  const island = document.getElementById('island');
+  const panel = document.getElementById('panel');
+  const count = document.getElementById('count');
+  const head = (icon, title, branch, tag, app, age) =>
+    `<div class="req-h">${svg(icon).replace('class="icon"', 'class="icon ti"')}<b>${title}</b>
+      <span class="chip">${svg('i-branch')}${branch}</span><span class="chip">${tag}</span>
+      <span class="app">${app} ${svg('i-arrow')}</span><span class="age">${age}</span></div>`;
+  const scenes = [
+    { project: 'payments-api', ok: 'Allow', html:
+      head('i-terminal', 'Bash', 'main', 'a3f1', 'Terminal', '12s') +
+      `<div class="req-body">npm run db:migrate -- --env staging</div>
+       <div class="req-sub">Apply the invoice VAT migration on staging</div>
+       <div class="acts"><span class="a a-deny">Deny</span><span class="a a-q">Always</span><span class="a a-ok">Allow</span></div>` },
+    { project: 'aurora-web', ok: 'Submit', html:
+      head('i-question', 'Claude asks', 'feature/charts', 'e91b', 'Ghostty', '4s') +
+      `<div class="req-body" style="font-family:var(--sans);font-weight:600">Which chart library should the dashboard use?</div>
+       <div class="opts"><div class="opt"><i></i>Recharts</div><div class="opt sel"><i></i>visx</div></div>
+       <div class="acts"><span class="a a-ok">Submit</span></div>` },
+    { project: 'ml-pipeline', ok: 'Approve', html:
+      head('i-plan', 'Plan', 'perf/eval', 'b40d', 'Cursor', '1m') +
+      `<div class="req-sub" style="color:rgba(255,255,255,.75);margin-top:10px">Speed up the evaluator: cache embeddings, batch requests in groups of 32, add a retry budget.</div>
+       <div class="acts"><span class="a a-q">Keep Planning</span><span class="a a-ok">Approve</span></div>` },
+  ];
+  const render = s => {
+    panel.innerHTML = `<div class="proj">${svg('i-folder')}${s.project}</div><div class="req">${s.html}</div>`;
+  };
+
+  if (reduce) { render(scenes[0]); island.classList.add('open'); return; }
+
+  let i = 0, timers = [], hovering = false;
+  const at = (ms, fn) => timers.push(setTimeout(fn, ms));
+  const clear = () => { timers.forEach(clearTimeout); timers = []; };
+  const cycle = () => {
+    clear();
+    const s = scenes[i % scenes.length];
+    render(s);
+    island.dataset.state = 'done'; island.classList.remove('open');
+    at(900, () => { island.dataset.state = 'ask'; count.textContent = '1'; });
+    at(2200, () => island.classList.add('open'));
+    at(4600, () => panel.querySelector('.a-ok')?.classList.add('press'));
+    at(5100, () => { island.classList.remove('open'); island.dataset.state = 'done'; });
+    at(6800, () => { i++; cycle(); });
+  };
+  island.addEventListener('mouseenter', () => { hovering = true; clear(); island.classList.add('open'); });
+  island.addEventListener('mouseleave', () => { hovering = false; cycle(); });
+  new IntersectionObserver(([e]) => { if (e.isIntersecting && !hovering) cycle(); else if (!e.isIntersecting) clear(); }).observe(island);
+})();
+</script>
+</body>
+</html>
