@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Security
+
+- The notch no longer lets you allow a request you could not fully see. A long
+  or multi-line command, an edit, file contents or a plan has to be opened
+  with "Show full …" before Allow and Always turn on; the card shows the line
+  count and marks cut or escaped content. Control characters, ANSI escapes,
+  bidi overrides and invisible characters are shown escaped. Input too long
+  to show in full is answered in the terminal.
+- Input with fields the card does not show (for example `timeout` or
+  `dangerouslyDisableSandbox`, which is highlighted) and commands with
+  non-ASCII characters also have to be opened first; the detail then shows
+  the full input. MCP arguments are shown as JSON values (`repo: "a/b"`).
+
 ## [0.2.5] - 2026-10-22
 
 ### Added

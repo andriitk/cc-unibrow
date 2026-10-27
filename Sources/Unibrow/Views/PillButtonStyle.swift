@@ -25,6 +25,7 @@ private struct PillButton: View {
     let kind: PillButtonStyle.Kind
 
     @State private var isHovered = false
+    @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
         configuration.label
@@ -34,7 +35,8 @@ private struct PillButton: View {
             .padding(.vertical, 5)
             .background(background, in: Capsule())
             .contentShape(Capsule())
-            .brightness(isHovered ? 0.08 : 0)
+            .brightness(isHovered && isEnabled ? 0.08 : 0)
+            .opacity(isEnabled ? 1 : 0.35)
             .scaleEffect(configuration.isPressed ? 0.95 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
             .animation(.easeOut(duration: 0.12), value: isHovered)

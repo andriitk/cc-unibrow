@@ -24,6 +24,11 @@ request demo-2 "$HOME/code/landing" Edit '{"file_path":"'"$HOME"'/code/landing/s
 request demo-3 "$HOME/code/infra" Bash '{"command":"terraform apply -auto-approve","description":"Apply infrastructure changes"}'
 request demo-3 "$HOME/code/infra" WebFetch '{"url":"https://registry.terraform.io/providers/hashicorp/aws/latest","prompt":"Find the latest provider version"}'
 request demo-2 "$HOME/code/landing" mcp__github__create_pull_request '{"repo":"me/landing","title":"New hero copy","base":"main"}'
+# Multi-line: Allow stays off until "Show full command" was opened.
+request demo-1 "$HOME/code/shop-api" Bash '{"command":"npm ci\nnpm run build\nrm -rf ./dist-old","description":"Clean rebuild"}'
 
-echo "Five requests sent. Answer them in the notch (Ctrl-C to abandon)."
+# An extra field: the detail becomes the full input, the sandbox flag is called out.
+request demo-3 "$HOME/code/infra" Bash '{"command":"make deploy","description":"Deploy","dangerouslyDisableSandbox":true}'
+
+echo "Seven requests sent. Answer them in the notch (Ctrl-C to abandon)."
 wait
