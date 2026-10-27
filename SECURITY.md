@@ -22,9 +22,11 @@ instead. You will get a reply within a few days.
   escaped. Allow is not blocked on opening it: that is the user's call.
 - **MCP servers are untrusted.** In an elicitation card the server name,
   message, field titles, option titles and URL are escaped the same way and
-  capped; values sent back stay exact. A link opens only on a click, only for
-  `http`/`https`, with the real host highlighted and user names before `@`,
-  international host names and plain HTTP called out. Password- and
+  capped; values sent back stay exact. A link is parsed once and the host shown
+  is the host opened; it opens only on a click, only for unambiguous
+  `http`/`https` URLs (no user name before `@`, no encoded host, no `\` or
+  hidden characters), with international hosts shown as punycode and plain
+  HTTP called out. Password- and
   token-like fields are secure fields, and no value is logged.
 - **Least access.** The app never reads project files. Accessibility access is
   optional and used only to read window titles and raise one window.

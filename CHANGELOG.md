@@ -12,8 +12,9 @@ All notable changes to this project are documented here. The format follows
   fields (text, email, URL, date, numbers, yes/no, single and multiple
   choice) with the server's rules checked before Submit; password- and
   token-like fields are hidden. Sign-in links show the full URL with the real
-  host highlighted and look-alike tricks flagged, and open only when you
-  click Open. Submit, Decline and Cancel answer the server; forms the notch
+  host highlighted (international names as punycode) and open only when you
+  click Open; links with a user name before the host, an encoded host or
+  characters browsers read differently are shown but not opened. Submit, Decline and Cancel answer the server; forms the notch
   cannot show, a paused or closed app, and a timeout leave the request to
   Claude Code's own dialog.
 - An alert when a turn stops on an API error (rate limit, overload, sign-in,

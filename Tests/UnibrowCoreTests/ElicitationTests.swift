@@ -289,46 +289,92 @@ struct ElicitationTests {
 
     // MARK: URL
 
-    @Test("The host is split out of the URL")
+    @Test("Display parts come from the parsed URL")
     func linkParts() throws {
-        let link = try #require(ElicitationLink("https://user:pw@accounts.example.com:8443/path?q=1#top"))
-        #expect(link.prefix == "https://user:pw@")
+        let link = try #require(ElicitationLink("https://accounts.example.com:8443/path?q=1#top"))
+        #expect(link.prefix == "https://")
         #expect(link.host == "accounts.example.com")
         #expect(link.suffix == ":8443/path?q=1#top")
-        #expect(link.hasUserInfo)
+        #expect(!link.hasUserInfo)
         #expect(link.isWeb && link.isEncrypted)
-        #expect(link.openableURL != nil)
+        #expect(link.openableURL?.absoluteString == "https://accounts.example.com:8443/path?q=1#top")
     }
 
-    @Test("Look-alike tricks are flagged")
-    func linkFlags() throws {
-        let fake = try #require(ElicitationLink("https://bank.com@evil.example/login"))
-        #expect(fake.host == "evil.example")
-        #expect(fake.hasUserInfo)
+    @Test("A backslash cannot show one host and open another")
+    func backslash() throws {
+        let link = try #require(ElicitationLink(#"https://good.com\@evil.com"#))
+        #expect(link.host == "evil.com")
+        #expect(link.hasUserInfo)
+        #expect(link.refusal == .ambiguous)
+        #expect(link.openableURL == nil)
+    }
 
-        let idn = try #require(ElicitationLink("https://аpple.com/"))
-        #expect(idn.hasInternationalHost)
+    @Test("User info is shown, the real host highlighted, and the link not opened")
+    func userInfo() throws {
+        let link = try #require(ElicitationLink("https://good.com@evil.com/login"))
+        #expect(link.prefix == "https://good.com@")
+        #expect(link.host == "evil.com")
+        #expect(link.hasUserInfo)
+        #expect(link.refusal == .userInfo)
+        #expect(link.openableURL == nil)
+
+        let password = try #require(ElicitationLink("https://u:secret@evil.com/"))
+        #expect(password.prefix == "https://u:•••@")
+        #expect(password.refusal == .userInfo)
+    }
+
+    @Test("An @ in the fragment is not user info: the host shown is the host opened")
+    func fragmentAt() throws {
+        let link = try #require(ElicitationLink("https://evil.com#@good.com"))
+        #expect(link.host == "evil.com")
+        #expect(link.suffix == "#@good.com")
+        #expect(!link.hasUserInfo)
+        #expect(link.openableURL?.host() == "evil.com")
+    }
+
+    @Test("A percent-encoded host is shown encoded and not opened")
+    func encodedHost() throws {
+        let link = try #require(ElicitationLink("https://%65vil.com/"))
+        #expect(link.host == "%65vil.com")
+        #expect(link.refusal == .encodedHost)
+        #expect(link.openableURL == nil)
+    }
+
+    @Test("An international host is shown as punycode and flagged")
+    func homograph() throws {
+        let link = try #require(ElicitationLink("https://\u{0430}pple.com/x"))
+        #expect(link.host == "xn--pple-43d.com")
+        #expect(link.unicodeHost == "\u{0430}pple.com")
+        #expect(link.hasInternationalHost)
+        #expect(link.openableURL?.absoluteString == "https://xn--pple-43d.com/x")
+
         let puny = try #require(ElicitationLink("https://xn--pple-43d.com/"))
         #expect(puny.hasInternationalHost)
+        #expect(puny.host == "xn--pple-43d.com")
+    }
 
+    @Test("Plain HTTP opens but is marked; hidden characters are escaped and refused")
+    func otherFlags() throws {
         let plain = try #require(ElicitationLink("http://example.com"))
         #expect(plain.isWeb && !plain.isEncrypted)
         #expect(plain.suffix.isEmpty)
 
         let hidden = try #require(ElicitationLink("https://example.com/\u{202E}gpj.exe"))
-        #expect(hidden.hasEscapedCharacters)
-        #expect(hidden.suffix == "/\\u{202E}gpj.exe")
+        #expect(hidden.refusal == .ambiguous)
+        #expect(hidden.openableURL == nil)
 
         let ipv6 = try #require(ElicitationLink("https://[::1]:8080/x"))
         #expect(ipv6.host == "[::1]")
     }
 
-    @Test("Only web links open from the notch", arguments: [
+    @Test("Only unambiguous web links open from the notch", arguments: [
         "file:///etc/passwd", "javascript:alert(1)", "vscode://ext/install", "https://", "mailto:a@b.c",
+        "https://example.com/a b", "ftp://example.com/",
     ])
     func nonWebLinks(raw: String) throws {
         let link = try #require(ElicitationLink(raw))
         #expect(!link.isWeb)
+        #expect(link.refusal != nil)
         #expect(link.openableURL == nil)
     }
 

@@ -102,12 +102,18 @@ project, the one-hour expiry and the connection-closed rule all apply.
   the core; `content` holds only valid, non-empty values keyed by property
   name. Fields whose name, title or format look like a password or token are
   secure fields. Values are never logged.
-- **URL.** `ElicitationLink` splits the URL by hand (Foundation would
-  normalize exactly what should be shown) so the card can highlight the host,
-  and flags user info before `@`, non-ASCII or punycode hosts, plain HTTP and
-  escaped characters. Only `http`/`https` URLs open, and only on a click:
-  **Open** opens the browser and answers `accept`, since Claude Code does not
-  open the URL itself once a hook accepted.
+- **URL.** `ElicitationLink` parses the URL once with `URLComponents`; the
+  scheme, user info, host and the rest shown on the card, and the URL that
+  opens, all come from that one parse, so a parser differential cannot show
+  one host and open another (`https://good.com\@evil.com`). The host is
+  highlighted; an international host is shown as punycode with its Unicode
+  form flagged. The link opens only on a click, and only when it is `http` or
+  `https`, has a host, no user info, no percent-encoded host, no `\`,
+  whitespace, control or format characters, and the parsed URL is exactly
+  the text sent (international host to punycode is the only rewrite allowed).
+  Otherwise the card says why and offers the terminal. **Open** opens the
+  browser and answers `accept`, since Claude Code does not open the URL itself
+  once a hook accepted.
 - **Unsupported** (another type, a nested or malformed schema, more than 25
   fields or 100 options, a URL request without a URL): the card offers
   **Answer in Terminal** (no output, so Claude Code shows its dialog) and

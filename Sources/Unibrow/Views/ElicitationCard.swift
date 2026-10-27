@@ -135,9 +135,8 @@ struct ElicitationCard: View {
                     .buttonStyle(.pill(.primary))
                     .disabled(link.openableURL == nil)
                     .opacity(link.openableURL == nil ? 0.4 : 1)
-                    .help(link.openableURL == nil
-                        ? "Only web links open from here. Answer in \(context.hostAppName)."
-                        : "Open \(link.host) in your browser")
+                    .help(link.refusal.map { "\($0.reason) Answer in \(context.hostAppName)." }
+                        ?? "Open \(link.host) in your browser")
             case .unsupported:
                 Button("Answer in \(context.hostAppName)", action: onSendToTerminal)
                     .buttonStyle(.pill(.secondary))
@@ -330,19 +329,20 @@ private struct LinkView: View {
                     Chip(text: Chip.shortened(link.host, limit: 40), symbol: "globe", color: .white.opacity(0.8))
                         .help("The browser opens \(link.host)")
                 }
-                if !link.isWeb {
-                    Chip(text: "not a web link", symbol: "exclamationmark.triangle", color: .orange)
-                        .help("Only http and https links open from the notch")
+                if let refusal = link.refusal {
+                    Chip(text: "won't open from here", symbol: "hand.raised", color: .orange)
+                        .help(refusal.reason)
                 } else if !link.isEncrypted {
                     Chip(text: "not HTTPS", symbol: "lock.open", color: .orange)
                 }
                 if link.hasUserInfo {
-                    Chip(text: "text before @ is not the site", symbol: "exclamationmark.shield", color: .orange)
-                        .help("Everything before @ is a user name; the site is \(link.host)")
+                    Chip(text: "user@ before the host", symbol: "exclamationmark.shield", color: .orange)
+                        .help("Everything before @ is a user name, not the site; the site is \(link.host)")
                 }
                 if link.hasInternationalHost {
-                    Chip(text: "international host name", symbol: "character", color: .orange)
-                        .help("Look-alike characters can imitate another site")
+                    Chip(text: link.unicodeHost.map { "international host: \(Chip.shortened($0, limit: 30))" } ?? "international host name",
+                         symbol: "character", color: .orange)
+                        .help("Shown as punycode. Look-alike characters can imitate another site.")
                 }
                 if link.hasEscapedCharacters {
                     Chip(text: "hidden characters shown escaped", symbol: "exclamationmark.triangle", color: .orange)

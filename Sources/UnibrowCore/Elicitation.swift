@@ -458,25 +458,51 @@ public struct ElicitationField: Sendable, Hashable, Identifiable {
 
 // MARK: - URL
 
-/// A URL-mode request's link, split so the card can highlight the host: the
-/// part that decides where the browser really goes.
+/// A URL-mode request's link.
+///
+/// The URL is parsed once, with `URLComponents`, and everything the card shows
+/// (scheme, user info, host, the rest) comes from that same parse, as does the
+/// URL that opens. Splitting the string by hand would let a parser
+/// differential show one host and open another (`https://good.com\@evil.com`).
+/// Anything ambiguous is shown but cannot be opened from the notch.
 public struct ElicitationLink: Sendable, Hashable {
-    /// The exact URL, opened as is.
+    /// Why the notch will not open a link; the card says so and offers the
+    /// terminal.
+    public enum Refusal: Sendable, Hashable {
+        case notWeb, malformed, userInfo, encodedHost, ambiguous
+
+        public var reason: String {
+            switch self {
+            case .notWeb: "Only http and https links open from here."
+            case .malformed: "The URL could not be read unambiguously."
+            case .userInfo: "The URL has a user name before the host, a common way to fake a site."
+            case .encodedHost: "The host name is percent-encoded, which can disguise it."
+            case .ambiguous: "The URL contains characters browsers read differently (\\, spaces, control characters)."
+            }
+        }
+    }
+
+    /// The URL exactly as the server sent it (trimmed).
     public let raw: String
-    /// Display parts (escaped): everything before the host, the host, the rest.
+    /// Display parts (escaped), all from the parsed URL: scheme and user
+    /// info, the host (punycode for an international name), the rest.
     public let prefix: String
     public let host: String
     public let suffix: String
-    /// `http` or `https` with a host. Only these open from the notch.
-    public let isWeb: Bool
+    /// The host in Unicode when it differs from the punycode shown (escaped).
+    public let unicodeHost: String?
     public let isEncrypted: Bool
-    /// `user@` before the host, as in `https://bank.com@evil.example`.
+    /// `user@` (or `user:password@`) before the host.
     public let hasUserInfo: Bool
     /// Non-ASCII or punycode (`xn--`) host, which can imitate another name.
     public let hasInternationalHost: Bool
     public let hasEscapedCharacters: Bool
     /// The rest of the URL was cut for display.
     public let isTruncated: Bool
+    /// Set when the link must not open from the notch.
+    public let refusal: Refusal?
+    /// The URL that opens: the parsed one, never re-split text.
+    private let url: URL?
 
     static let maxSuffixLength = 1_500
 
@@ -485,55 +511,76 @@ public struct ElicitationLink: Sendable, Hashable {
         guard !trimmed.isEmpty else { return nil }
         self.raw = trimmed
 
-        // Split by hand: Foundation would normalize (or reject) exactly the
-        // characters we want to show.
-        var schemeEnd = trimmed.startIndex
-        var host = Substring("")
-        var prefix = Substring("")
-        var suffix = Substring(trimmed)
-        var userInfo = false
-        if let colon = trimmed.firstIndex(of: ":"), trimmed[trimmed.index(after: colon)...].hasPrefix("//") {
-            schemeEnd = colon
-            let authorityStart = trimmed.index(colon, offsetBy: 3)
-            let authorityEnd = trimmed[authorityStart...].firstIndex(where: { "/?#\\".contains($0) }) ?? trimmed.endIndex
-            let authority = trimmed[authorityStart..<authorityEnd]
-            var hostStart = authorityStart
-            if let at = authority.lastIndex(of: "@") {
-                userInfo = true
-                hostStart = trimmed.index(after: at)
+        let components = URLComponents(string: trimmed)
+        let scheme = components?.scheme?.lowercased() ?? ""
+        let encodedHost = components?.encodedHost ?? components?.percentEncodedHost ?? ""
+        let decodedHost = components?.host ?? ""
+        let user = components?.percentEncodedUser
+        let password = components?.percentEncodedPassword
+        let userInfo = user != nil || password != nil
+
+        var prefix = ""
+        var host = ""
+        var suffix = trimmed
+        if let components, components.percentEncodedHost != nil {
+            prefix = (components.scheme ?? "") + "://"
+            if userInfo {
+                prefix += (user ?? "") + (password == nil ? "" : ":•••") + "@"
             }
-            var hostEnd = authorityEnd
-            let hostAndPort = trimmed[hostStart..<authorityEnd]
-            if !hostAndPort.hasPrefix("["), let portColon = hostAndPort.lastIndex(of: ":") {
-                hostEnd = portColon
-            } else if hostAndPort.hasPrefix("["), let bracket = hostAndPort.firstIndex(of: "]") {
-                hostEnd = trimmed.index(after: bracket)
-            }
-            prefix = trimmed[..<hostStart]
-            host = trimmed[hostStart..<hostEnd]
-            suffix = trimmed[hostEnd...]
+            host = encodedHost
+            suffix = (components.port.map { ":\($0)" } ?? "")
+                + components.percentEncodedPath
+                + (components.percentEncodedQuery.map { "?" + $0 } ?? "")
+                + (components.percentEncodedFragment.map { "#" + $0 } ?? "")
         }
-        let scheme = schemeEnd == trimmed.startIndex ? "" : trimmed[..<schemeEnd].lowercased()
 
         let shownPrefix = ToolSummary.escaped(String(prefix.prefix(300)))
         let shownHost = ToolSummary.escaped(String(host.prefix(300)))
         let shownSuffix = ToolSummary.escaped(String(suffix.prefix(Self.maxSuffixLength)))
-        self.prefix = shownPrefix.text
-        self.host = shownHost.text
+        self.prefix = shownPrefix.text + (prefix.count > 300 ? "…" : "")
+        self.host = shownHost.text + (host.count > 300 ? "…" : "")
         self.suffix = shownSuffix.text + (suffix.count > Self.maxSuffixLength ? "…" : "")
         self.isTruncated = suffix.count > Self.maxSuffixLength || prefix.count > 300 || host.count > 300
         self.hasEscapedCharacters = shownPrefix.changed || shownHost.changed || shownSuffix.changed
         self.hasUserInfo = userInfo
-        self.hasInternationalHost = !host.unicodeScalars.allSatisfy(\.isASCII)
-            || host.lowercased().split(separator: ".").contains { $0.hasPrefix("xn--") }
+        let international = !decodedHost.unicodeScalars.allSatisfy(\.isASCII)
+            || encodedHost.lowercased().split(separator: ".").contains { $0.hasPrefix("xn--") }
+        self.hasInternationalHost = international
+        self.unicodeHost = international && decodedHost != encodedHost
+            ? ElicitationRequest.label(decodedHost) : nil
         self.isEncrypted = scheme == "https"
-        self.isWeb = (scheme == "https" || scheme == "http") && !host.isEmpty
-            && !trimmed.contains(where: { $0.isWhitespace || $0.isNewline })
-            && URL(string: trimmed) != nil
+
+        // The URL that would open, and whether it is exactly what was shown.
+        let parsed = components?.url
+        var expected = trimmed
+        if international, !decodedHost.isEmpty, decodedHost != encodedHost {
+            // The only rewrite allowed: an international host to punycode.
+            expected = trimmed.replacingOccurrences(of: decodedHost, with: encodedHost)
+        }
+        let refusal: Refusal?
+        if scheme != "http" && scheme != "https" {
+            refusal = .notWeb
+        } else if trimmed.contains("\\") || trimmed.unicodeScalars.contains(where: {
+            $0.properties.isWhitespace || $0.properties.generalCategory == .control || $0.properties.generalCategory == .format
+        }) {
+            refusal = .ambiguous
+        } else if userInfo {
+            refusal = .userInfo
+        } else if components?.percentEncodedHost?.contains("%") == true && !international {
+            refusal = .encodedHost
+        } else if encodedHost.isEmpty || parsed == nil || parsed?.absoluteString != expected {
+            refusal = .malformed
+        } else {
+            refusal = nil
+        }
+        self.refusal = refusal
+        self.url = refusal == nil ? parsed : nil
     }
 
-    /// The URL to hand to the browser, when it may be opened from the notch.
-    public var openableURL: URL? {
-        isWeb ? URL(string: raw) : nil
-    }
+    /// `http` or `https` and nothing ambiguous: the link may open from the notch.
+    public var isWeb: Bool { refusal == nil }
+
+    /// The URL to hand to the browser, exactly the parsed one; `nil` when the
+    /// link must be answered in the terminal.
+    public var openableURL: URL? { url }
 }

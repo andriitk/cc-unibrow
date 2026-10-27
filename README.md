@@ -134,8 +134,10 @@ URL or use an MCP tool. You see the exact command or a diff of the edit.
 the server's checks; password- and token-like fields are hidden as you type.
 **Submit**, **Decline** or **Cancel**, as in the terminal. A **sign-in link**
 shows the full URL with the real host highlighted and look-alike tricks
-called out (text before `@`, international host names, no HTTPS); **Open**
-opens it in your browser. Nothing opens by itself. A form the notch cannot
+called out (international host names as punycode, no HTTPS); **Open** opens
+it in your browser. Nothing opens by itself, and a link with a user name
+before the host or characters browsers read differently is shown but not
+opened. A form the notch cannot
 show offers **Answer in Terminal**. While such a card waits, Claude Code shows
 no dialog of its own (it waits for the notch), so use **Answer in …** to
 answer in the terminal instead.
