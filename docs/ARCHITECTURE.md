@@ -100,15 +100,15 @@ terminal) and 50 finished notices, which expire after 30 minutes. A card's data
 lives only in that card. Large inputs are capped for display only; Claude Code
 always receives the full input.
 
-**Approve only what was shown.** `ToolSummary.review` says whether the
-one-line headline shows the whole input. If not (several lines, longer than
-fits, a separate diff, file contents or plan, escaped characters, non-ASCII
-in a command, or input fields the card has no place for), Allow and Always
-stay disabled until the card's detail has been opened for that request (the
-card remembers the reviewed request's ID, not a flag). Fields the card does
-not know turn the detail into the full input as JSON, and safety-relevant
-ones such as `dangerouslyDisableSandbox` are called out. If the detail was
-capped, Allow stays disabled and the request has to be answered in the
+**Show what is hidden.** `ToolSummary.review` says whether the one-line
+headline shows the whole input. If not (several lines, longer than fits, a
+separate diff, file contents or plan, escaped characters, non-ASCII in a
+command, or input fields the card has no place for), the card marks it and
+offers "Show full …". Allow and Always stay enabled (owner's decision: no
+forced extra click); `Review.allowsApproval` remains for callers that want to
+gate. Fields the card does not know turn the detail into the full input as
+JSON, and safety-relevant ones such as `dangerouslyDisableSandbox` are called
+out. A capped detail is flagged and points to the
 terminal. Control characters (`\r`, ANSI escapes), bidi overrides,
 default-ignorable and other invisible characters and non-ASCII spaces are
 shown escaped, so text cannot hide or overwrite other text; MCP arguments
