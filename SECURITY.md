@@ -15,6 +15,10 @@ instead. You will get a reply within a few days.
   Code shows its normal prompt. Unibrow never approves anything on its own.
 - **Local only.** No network code. The socket is in a `0700` directory with
   mode `0600`, and the app checks that connections come from the same user.
+- **What you approve is what you saw.** Allow stays off until the whole input
+  is on screen: a long or multi-line command has to be opened first, control,
+  bidi and invisible characters are shown escaped, and input too long to show
+  in full can only be answered in the terminal.
 - **Least access.** The app never reads project files. Accessibility access is
   optional and used only to read window titles and raise one window.
 

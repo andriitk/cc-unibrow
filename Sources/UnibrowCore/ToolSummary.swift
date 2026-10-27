@@ -15,37 +15,157 @@ public struct ToolSummary: Sendable, Equatable {
 
     /// Tool name as shown to the user, e.g. "Bash" or "github · create_issue".
     public let title: String
-    /// One line that identifies the action: a command, a file, a URL.
+    /// One line that identifies the action: a command, a file, a URL. Cut for
+    /// display, with invisible characters escaped: a label, not the input.
     public let headline: String
     /// Optional second line, e.g. Claude's own description of a command.
     public let caption: String?
-    /// The full content, shown when the card is expanded.
+    /// The full content, shown when the card is expanded. Capped for display
+    /// and escaped; `review` says whether anything was left out.
     public let detail: Detail?
     /// SF Symbol name for the tool.
     public let symbol: String
+    /// What the card must show before it may offer Allow.
+    public let review: Review
 
-    public init(title: String, headline: String, caption: String? = nil, detail: Detail? = nil, symbol: String) {
+    /// How much of the input the collapsed card shows, so the app never lets
+    /// someone approve text they could not see (a long command whose dangerous
+    /// part is past the cut, a second line, a `\r` that overwrites the first).
+    public struct Review: Sendable, Equatable {
+        /// The headline alone shows the whole input: one short line with
+        /// nothing escaped. Otherwise the detail has to be opened first.
+        public let fitsInHeadline: Bool
+        /// Lines in the detail (both sides of a diff together).
+        public let lineCount: Int
+        /// Characters cut from the detail; Claude Code still gets all of them.
+        public let hiddenCharacters: Int
+        /// The input contains control, bidi or invisible characters, shown escaped.
+        public let hasEscapedCharacters: Bool
+
+        public var isTruncated: Bool { hiddenCharacters > 0 }
+        public var isMultiLine: Bool { lineCount > 1 }
+        /// Allow waits until the user opened the detail.
+        public var requiresExpanding: Bool { !fitsInHeadline }
+        /// Only a complete detail can be approved here; a truncated one goes
+        /// to the terminal, which shows everything.
+        public var canApproveHere: Bool { !isTruncated }
+    }
+
+    /// - Parameter headlineIsComplete: the headline is derived from the whole
+    ///   input (a command, the inline arguments), so when it is one short line
+    ///   it shows everything there is. False when the detail holds other
+    ///   content (a diff, file contents, a plan).
+    public init(
+        title: String,
+        headline: String,
+        caption: String? = nil,
+        detail: Detail? = nil,
+        symbol: String,
+        headlineIsComplete: Bool = true
+    ) {
+        let headlineFits = Self.fitsOnOneLine(headline)
+        // A long or multi-line headline with nothing behind it gets a detail,
+        // so the whole value can still be read before approving.
+        let detail = detail ?? (headlineFits ? nil : .text(headline))
+        let display = detail.map(Self.displayed)
+
         self.title = title
-        self.headline = String(headline.prefix(Self.maxHeadlineLength))
+        self.headline = String(Self.escaped(Self.firstLine(of: headline)).text.prefix(Self.maxHeadlineLength))
         self.caption = caption
-        self.detail = detail.map(Self.capped)
+        self.detail = display?.detail
         self.symbol = symbol
+        self.review = Review(
+            fitsInHeadline: detail == nil || (headlineIsComplete && headlineFits),
+            lineCount: display?.lineCount ?? (headline.isEmpty ? 0 : 1),
+            hiddenCharacters: display?.hiddenCharacters ?? 0,
+            hasEscapedCharacters: (display?.hasEscapedCharacters ?? false) || Self.escaped(headline).changed
+        )
     }
 
     /// Display limits. A `Write` of a multi-megabyte file must not turn into a
     /// multi-megabyte `Text` view; the full input still goes to Claude Code.
     static let maxHeadlineLength = 500
     static let maxDetailLength = 20_000
+    /// Longest input the collapsed card shows in full without a review. The
+    /// headline wraps rather than truncates up to this length.
+    static let maxInlineLength = 120
 
-    static func capped(_ detail: Detail) -> Detail {
-        func cap(_ text: String) -> String {
-            guard text.count > maxDetailLength else { return text }
-            return text.prefix(maxDetailLength) + "\n… \(text.count - maxDetailLength) more characters"
+    /// One short line with nothing that needs escaping.
+    static func fitsOnOneLine(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.count <= maxInlineLength
+            && !trimmed.contains(where: \.isNewline)
+            && !escaped(trimmed).changed
+    }
+
+    private static func displayed(_ detail: Detail) -> (detail: Detail, lineCount: Int, hiddenCharacters: Int, hasEscapedCharacters: Bool) {
+        var lines = 0, hidden = 0, escapedAny = false
+        func show(_ text: String) -> String {
+            lines += lineCount(of: text)
+            let shown: String
+            if text.count > maxDetailLength {
+                hidden += text.count - maxDetailLength
+                shown = String(text.prefix(maxDetailLength))
+            } else {
+                shown = text
+            }
+            let result = escaped(shown)
+            escapedAny = escapedAny || result.changed
+            return result.text
         }
+        let capped: Detail
         switch detail {
-        case .code(let text): return .code(cap(text))
-        case .text(let text): return .text(cap(text))
-        case .diff(let removed, let added): return .diff(removed: cap(removed), added: cap(added))
+        case .code(let text): capped = .code(withNote(show(text), text))
+        case .text(let text): capped = .text(withNote(show(text), text))
+        case .diff(let removed, let added):
+            capped = .diff(removed: withNote(show(removed), removed), added: withNote(show(added), added))
+        }
+        return (capped, lines, hidden, escapedAny)
+    }
+
+    private static func withNote(_ shown: String, _ original: String) -> String {
+        guard original.count > maxDetailLength else { return shown }
+        return shown + "\n… \(original.count - maxDetailLength) more characters"
+    }
+
+    static func lineCount(of text: String) -> Int {
+        guard !text.isEmpty else { return 0 }
+        let trimmed = text.trimmingCharacters(in: .newlines)
+        return trimmed.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).count
+    }
+
+    /// Makes characters that could hide or rearrange text visible: control
+    /// characters (`\r`, ANSI `ESC`, backspace…), bidi overrides and isolates,
+    /// zero-width and other invisible format characters, Unicode line breaks.
+    /// Newlines and tabs stay, so code still reads as code. ZWJ stays too:
+    /// it only joins emoji.
+    static func escaped(_ text: String) -> (text: String, changed: Bool) {
+        guard text.unicodeScalars.contains(where: needsEscape) else { return (text, false) }
+        var result = String.UnicodeScalarView()
+        for scalar in text.unicodeScalars {
+            guard needsEscape(scalar) else {
+                result.append(scalar)
+                continue
+            }
+            let escape: String
+            switch scalar {
+            case "\r": escape = "\\r"
+            case "\0": escape = "\\0"
+            default: escape = "\\u{" + String(scalar.value, radix: 16, uppercase: true) + "}"
+            }
+            result.append(contentsOf: escape.unicodeScalars)
+        }
+        return (String(result), true)
+    }
+
+    private static func needsEscape(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar {
+        case "\n", "\t", "\u{200D}": return false
+        default: break
+        }
+        switch scalar.properties.generalCategory {
+        case .control, .format, .lineSeparator, .paragraphSeparator: return true
+        default: return false
         }
     }
 
@@ -62,7 +182,7 @@ public struct ToolSummary: Sendable, Equatable {
             let command = string("command") ?? ""
             self.init(
                 title: "Bash",
-                headline: Self.abbreviatingHome(Self.firstLine(of: command), home: home),
+                headline: Self.abbreviatingHome(command, home: home),
                 caption: string("description"),
                 detail: .code(command),
                 symbol: "terminal"
@@ -74,7 +194,8 @@ public struct ToolSummary: Sendable, Equatable {
                 headline: path("file_path") ?? "file",
                 caption: input["replace_all"]?.boolValue == true ? "Replace all occurrences" : nil,
                 detail: .diff(removed: string("old_string") ?? "", added: string("new_string") ?? ""),
-                symbol: "pencil"
+                symbol: "pencil",
+                headlineIsComplete: false
             )
 
         case "MultiEdit":
@@ -87,7 +208,8 @@ public struct ToolSummary: Sendable, Equatable {
                     removed: edits.compactMap { $0["old_string"]?.stringValue }.joined(separator: "\n⋯\n"),
                     added: edits.compactMap { $0["new_string"]?.stringValue }.joined(separator: "\n⋯\n")
                 ),
-                symbol: "pencil"
+                symbol: "pencil",
+                headlineIsComplete: false
             )
 
         case "Write":
@@ -95,7 +217,8 @@ public struct ToolSummary: Sendable, Equatable {
                 title: "Write",
                 headline: path("file_path") ?? "file",
                 detail: string("content").map(Detail.code),
-                symbol: "doc.badge.plus"
+                symbol: "doc.badge.plus",
+                headlineIsComplete: false
             )
 
         case "NotebookEdit":
@@ -103,7 +226,8 @@ public struct ToolSummary: Sendable, Equatable {
                 title: "Notebook",
                 headline: path("notebook_path") ?? "notebook",
                 detail: string("new_source").map(Detail.code),
-                symbol: "book"
+                symbol: "book",
+                headlineIsComplete: false
             )
 
         case "Read":
@@ -141,24 +265,25 @@ public struct ToolSummary: Sendable, Equatable {
             let plan = string("plan") ?? ""
             self.init(
                 title: "Plan",
-                headline: Self.firstLine(of: plan.replacingOccurrences(of: "#", with: "")),
+                headline: plan.replacingOccurrences(of: "#", with: ""),
                 caption: "Approve the plan and start coding",
                 detail: plan.isEmpty ? nil : .text(plan),
-                symbol: "list.bullet.clipboard"
+                symbol: "list.bullet.clipboard",
+                headlineIsComplete: false
             )
 
         default:
             if let mcp = Self.parseMCP(toolName) {
                 self.init(
                     title: "\(mcp.server) · \(mcp.tool)",
-                    headline: Self.firstLine(of: Self.inlineArguments(input)),
+                    headline: Self.inlineArguments(input),
                     detail: Self.jsonDetail(input),
                     symbol: "puzzlepiece.extension"
                 )
             } else {
                 self.init(
                     title: toolName,
-                    headline: Self.firstLine(of: Self.inlineArguments(input)),
+                    headline: Self.inlineArguments(input),
                     detail: Self.jsonDetail(input),
                     symbol: "wrench.and.screwdriver"
                 )
@@ -199,7 +324,8 @@ public struct ToolSummary: Sendable, Equatable {
 
     static func firstLine(of text: String) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let newline = trimmed.firstIndex(of: "\n") else { return trimmed }
+        // Any line break, not just "\n": "\r\n", a lone "\r" and U+2028 too.
+        guard let newline = trimmed.firstIndex(where: \.isNewline) else { return trimmed }
         return String(trimmed[..<newline]) + " …"
     }
 

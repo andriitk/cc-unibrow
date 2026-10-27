@@ -100,6 +100,15 @@ terminal) and 50 finished notices, which expire after 30 minutes. A card's data
 lives only in that card. Large inputs are capped for display only; Claude Code
 always receives the full input.
 
+**Approve only what was shown.** `ToolSummary.review` says whether the
+one-line headline shows the whole input. If not (several lines, longer than
+fits, a separate diff, file contents or plan, escaped characters), Allow and
+Always stay disabled until the card's detail has been opened; if the detail
+was capped, they stay disabled and the request has to be answered in the
+terminal. Control characters (`\r`, ANSI escapes), bidi overrides and
+invisible format characters are shown escaped, so text cannot hide or
+overwrite other text. Deny is always available.
+
 **Local and private.** No network code. The socket lives in a `0700` directory
 with mode `0600`, and the server checks the peer's UID. The app never reads
 project files, so macOS never asks for access to Documents or Desktop; the relay,

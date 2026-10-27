@@ -86,6 +86,7 @@ struct CardHeader: View {
 struct Chip: View {
     let text: String
     let symbol: String?
+    var color: Color = .white.opacity(0.55)
 
     var body: some View {
         HStack(spacing: 3) {
@@ -97,7 +98,7 @@ struct Chip: View {
                 .lineLimit(1)
         }
         .font(.system(size: 10, weight: .medium))
-        .foregroundStyle(.white.opacity(0.55))
+        .foregroundStyle(color)
         .padding(.horizontal, 6)
         .padding(.vertical, 2)
         .background(.white.opacity(0.08), in: Capsule())
