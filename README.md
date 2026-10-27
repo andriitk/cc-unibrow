@@ -139,8 +139,9 @@ it in your browser. Nothing opens by itself, and a link with a user name
 before the host or characters browsers read differently is shown but not
 opened. A form the notch cannot
 show offers **Answer in Terminal**. While such a card waits, Claude Code shows
-no dialog of its own (it waits for the notch), so use **Answer in …** to
-answer in the terminal instead.
+no dialog of its own (it waits for the notch), so the card counts down: after
+about two minutes, or right away with **Answer in …**, the request moves to
+Claude Code's own dialog.
 
 **Alerts.** A red row when a turn stops on an API error (rate limit,
 overload, sign-in, billing…), with the error details one click away, and an

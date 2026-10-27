@@ -25,7 +25,7 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/unibrow-hook\" Elicitation",
-            "timeout": 3600
+            "timeout": 120
           }
         ]
       }

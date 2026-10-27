@@ -51,9 +51,18 @@ func relay() -> Data? {
     // Safety net: if our parent dies without killing us, we are re-parented to
     // launchd (PID 1). Nobody can read our answer any more, so exit and free
     // the request instead of waiting for the hook timeout.
+    //
+    // An elicitation also has a deadline: Claude Code shows no dialog while
+    // this hook runs, so after `answerDeadline` the relay prints nothing and
+    // the dialog appears (closing the socket also drops the card).
     let parent = getppid()
-    let isOrphaned = { getppid() != parent || getppid() == 1 }
-    guard let line = try? UnixSocket.readLine(from: fd, shouldGiveUp: isOrphaned),
+    let started = Date()
+    let deadline = event.answerDeadline
+    let shouldGiveUp = {
+        getppid() != parent || getppid() == 1
+            || deadline.map { Date().timeIntervalSince(started) >= $0 } == true
+    }
+    guard let line = try? UnixSocket.readLine(from: fd, shouldGiveUp: shouldGiveUp),
           let reply = try? WireProtocol.unframe(DecisionMessage.self, from: line),
           let output = HookOutput.output(for: event, reply.decision)
     else { return nil }

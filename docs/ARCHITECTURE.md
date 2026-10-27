@@ -27,7 +27,7 @@ Unibrow has three parts: a Claude Code **plugin** that registers hooks, a tiny
 | Event | Mode | Used for |
 |---|---|---|
 | `PermissionRequest` | blocking, 1 h timeout | The cards: tool permissions, `AskUserQuestion`, `ExitPlanMode`. |
-| `Elicitation` | blocking, 1 h timeout | MCP server requests: a form or a URL to open (below). |
+| `Elicitation` | blocking, 120 s timeout | MCP server requests: a form or a URL to open (below). The relay gives up after 110 s. |
 | `StopFailure` | async | The turn ended on an API error: drop the session's cards, show an alert. |
 | `Notification` (matcher `agent_needs_input`) | async | A background agent waits for input: show an alert. |
 | `PostToolUse`, `PostToolUseFailure`, `PermissionDenied` | async | A request was answered elsewhere: drop its card. |
@@ -134,8 +134,20 @@ returns. The `elicitation_response` notification carries only the server name
 in its message text and no elicitation ID, so Unibrow does not use it to drop
 cards. A card leaves the notch when it is answered, sent to the terminal, when
 the hook ends (EOF), when the session moves on (`UserPromptSubmit`, `Stop`,
-`StopFailure`, `SessionEnd`), or after the hook timeout. Elicitations from
+`StopFailure`, `SessionEnd`), or at its deadline. Elicitations from
 `claude -p` never reach hooks (Claude Code cancels them).
+
+Because the terminal has no dialog while a card waits, an elicitation waits
+only briefly: the hook's `timeout` is 120 s (`HookEvent.elicitationHookTimeout`)
+and the relay itself stops waiting after 110 s
+(`HookEvent.elicitationAnswerSeconds`), prints nothing and exits 0, so Claude
+Code shows its own dialog. Ending before the timeout keeps it a clean "no
+decision" rather than a hook Claude Code had to cut off. The card shows a
+countdown ("Moves to Terminal in 1:42", orange in the last 20 s), and the
+socket closing at the deadline drops it; the app also drops it two seconds
+after the deadline in case the relay did not. A test checks that `hooks.json`
+and the constants agree. Permission requests keep the one-hour timeout: the
+terminal shows its own prompt alongside the card.
 
 ## Alerts
 
@@ -196,7 +208,8 @@ which runs inside the user's terminal, reads the git branch instead.
 Claude Code 2.1.299 changed "actions a plugin hook can block to be refused,
 not let through, when the hook cannot be handed them or cannot hand back its
 answer; a tool that already ran has its result withheld". This note is an
-analysis made on 2.1.296; nothing was changed for it.
+analysis made on 2.1.296; two changes followed from it (the shim drains
+stdin, and elicitations end before their hook timeout).
 
 **Why Unibrow's fail-open is not "let through".** When the app is absent,
 paused or broken, the relay exits 0 with no output. For `PermissionRequest`
@@ -211,15 +224,20 @@ uses plain command hooks from `hooks.json`, whose contract in the hooks
 reference is unchanged. If the rule also reaches command hooks, these are the
 paths that could change from "ask in the terminal" to "refused":
 
-- **Stdin not read.** Without the app, the shim exits for every event but
-  `SessionStart` without reading stdin. If Claude Code reports the failed
-  write (EPIPE) as "could not hand the hook its input", a permission request
-  or elicitation would be refused instead of prompted. The relay itself
-  always reads stdin to the end. A one-line `cat >/dev/null` before
-  `exit 0` in the shim would remove this risk.
-- **Timeout.** `PermissionRequest` and `Elicitation` time out after an hour.
-  A timed-out hook "cannot hand back its answer": the request might be denied
-  or declined instead of falling back to the terminal.
+- **Stdin not read** (fixed). Without the app, the shim used to exit for
+  every event but `SessionStart` without reading stdin; a failed write
+  (EPIPE) could count as "could not hand the hook its input" and refuse a
+  permission request or elicitation. The shim now reads its input to the end
+  (`cat >/dev/null`) on every path that does not exec the relay, and the
+  relay always did. `scripts/test-shim.sh` (run in CI) pipes 4 MB into the
+  shim without the app for each event and fails if the writer gets SIGPIPE
+  or the shim prints anything.
+- **Timeout.** A timed-out hook "cannot hand back its answer": the request
+  might be denied or declined instead of falling back to the terminal. An
+  elicitation's relay now ends on its own at 110 s, before the 120 s hook
+  timeout. A permission request still waits until Claude Code's one-hour
+  timeout if nobody answers; there the terminal prompt is visible the whole
+  time, so this needs an unanswered prompt for an hour.
 - **Crash or kill.** A relay killed by a signal, or a shim that cannot exec
   the relay (exit 126/127), is a failed hook rather than "no output".
 - **Async hooks** (`PostToolUse`, `PostToolUseFailure`, `PermissionDenied`,
@@ -246,10 +264,11 @@ and the hook log):
 7. Allow, Always, Deny, question answers and elicitation Submit/Decline/
    Cancel/Open from the notch still reach Claude Code.
 
-If 1 or 2 now end in a refusal, drain stdin in the shim first. If 4 or 5 do,
-the terminal fallback no longer covers a crashed or timed-out relay: say so
-in the docs (a missing answer refuses), and keep the relay's own
-"parent died" exit, which ends quietly before Claude Code gives up on it.
+If 1 or 2 still end in a refusal, the stdin drain was not the cause: check
+the debug log for what Claude Code reports. If 4 or 5 do, the terminal
+fallback no longer covers a crashed or timed-out relay: say so in the docs (a
+missing answer refuses), and consider giving the permission relay a deadline
+just below its timeout, as the elicitation relay has.
 
 ## Finding the session's window
 

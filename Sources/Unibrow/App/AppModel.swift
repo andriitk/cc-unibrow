@@ -392,6 +392,16 @@ final class AppModel {
         queue.append(request)
         if playsSound { NSSound(named: "Tink")?.play() }
         showPeek(.request(request))
+        if let deadline = request.answerDeadline {
+            // The relay gives up at the deadline and closes the socket, which
+            // drops the card; this catches a relay that did not.
+            Task { [weak self] in
+                try? await Task.sleep(for: .seconds(max(0, deadline.timeIntervalSinceNow) + 2))
+                guard let self, self.queue.remove(id: request.id) != nil else { return }
+                self.server.drop(request.id)
+                self.clearPeek(ifShowing: request)
+            }
+        }
         Task {
             guard let app = await Self.hostApp(for: message, hookPID: hookPID) else { return }
             queue.update(id: request.id) { $0.hostPID = app.processIdentifier }

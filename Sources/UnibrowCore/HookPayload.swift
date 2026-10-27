@@ -24,6 +24,23 @@ public enum HookEvent: String, Sendable, Codable, CaseIterable {
     /// Whether the hook relay must wait for a decision from the app.
     public var expectsDecision: Bool { self == .permissionRequest || self == .elicitation }
 
+    /// How long the relay waits for the user before it prints nothing, so
+    /// Claude Code asks in the terminal. `nil`: until Claude Code ends the hook.
+    ///
+    /// Claude Code shows no elicitation dialog while the hook runs, so an
+    /// elicitation waits only `elicitationAnswerSeconds`. That is shorter than
+    /// the hook's `timeout` in `hooks.json` (`elicitationHookTimeout`), so the
+    /// relay ends on its own with a clean "no decision" instead of being cut
+    /// off by Claude Code, which 2.1.299+ may treat as a refusal.
+    public var answerDeadline: TimeInterval? {
+        self == .elicitation ? Self.elicitationAnswerSeconds : nil
+    }
+
+    /// The `timeout` of the `Elicitation` hook in `plugin/hooks/hooks.json`.
+    public static let elicitationHookTimeout: TimeInterval = 120
+    /// When the relay stops waiting for an elicitation answer.
+    public static let elicitationAnswerSeconds: TimeInterval = 110
+
     /// Whether the app shows something about the session itself, so the relay
     /// adds the git branch and the process chain that leads to the window.
     public var needsSessionDetails: Bool {

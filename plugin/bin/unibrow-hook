@@ -12,6 +12,13 @@ if [ -x "$relay" ] && [ "${1:-}" != "SessionStart" ]; then
     exec "$relay" "$@"
 fi
 
+# Every other path ends here without the relay. Read the hook input to the end
+# first: Claude Code 2.1.299+ refuses an action when it "cannot hand the hook
+# its input", and a hook that exits with its stdin unread can look like that.
+# Exiting 0 with no output after reading it means "no decision": the normal
+# terminal prompt. (Not when run by hand from a terminal.)
+[ -t 0 ] || cat >/dev/null 2>&1 || :
+
 here=$(cd "$(dirname "$0")" && pwd)
 failed="${HOME}/Library/Application Support/cc-unibrow/bootstrap-failed"
 

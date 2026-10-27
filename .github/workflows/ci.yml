@@ -38,3 +38,5 @@ jobs:
             || { echo "CHANGELOG.md has no section for $version"; exit 1; }
       - name: Bootstrap waits for an unpublished release
         run: sh scripts/test-bootstrap.sh
+      - name: Hook shim reads its input without the app
+        run: sh scripts/test-shim.sh

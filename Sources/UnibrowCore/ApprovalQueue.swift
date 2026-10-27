@@ -74,6 +74,18 @@ public struct PendingRequest: Sendable, Identifiable, Hashable {
         agentType = payload.agentType
     }
 
+    /// When the relay stops waiting and Claude Code asks in the terminal
+    /// instead; `nil` for requests that wait until Claude Code ends the hook.
+    public var answerDeadline: Date? {
+        guard elicitation != nil, let seconds = HookEvent.elicitation.answerDeadline else { return nil }
+        return receivedAt.addingTimeInterval(seconds)
+    }
+
+    /// Whole seconds left before `answerDeadline` (never negative).
+    public func secondsLeft(now: Date) -> Int? {
+        answerDeadline.map { max(0, Int($0.timeIntervalSince(now).rounded(.up))) }
+    }
+
     /// Claude asks to leave plan mode and start working.
     public var isPlanApproval: Bool { toolName == "ExitPlanMode" }
 
@@ -166,10 +178,14 @@ public struct ApprovalQueue: Sendable, Equatable {
         removeAll { $0.sessionID == sessionID }
     }
 
-    /// Removes requests older than `maxAge`. A safety net for signals we miss.
+    /// Removes requests older than `maxAge`, or past their own answer
+    /// deadline. A safety net for signals we miss.
     @discardableResult
     public mutating func removeExpired(now: Date, maxAge: TimeInterval) -> [PendingRequest] {
-        removeAll { now.timeIntervalSince($0.receivedAt) > maxAge }
+        removeAll { request in
+            now.timeIntervalSince(request.receivedAt) > maxAge
+                || request.answerDeadline.map { now >= $0 } == true
+        }
     }
 
     /// Requests grouped by project, preserving arrival order in and across groups.

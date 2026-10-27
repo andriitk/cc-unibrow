@@ -96,6 +96,20 @@ struct ElicitationCard: View {
             Divider()
                 .overlay(.white.opacity(0.08))
 
+            if context.request.answerDeadline != nil {
+                TimelineView(.periodic(from: .now, by: 1)) { timeline in
+                    let left = context.request.secondsLeft(now: timeline.date) ?? 0
+                    Label(
+                        "Moves to \(context.hostAppName) in \(left / 60):\(String(format: "%02d", left % 60))",
+                        systemImage: "timer"
+                    )
+                    .font(.system(size: 10.5, weight: .medium))
+                    .monospacedDigit()
+                    .foregroundStyle(left <= 20 ? Color.orange : .white.opacity(0.45))
+                    .help("Claude Code shows no dialog while this card waits. When the countdown ends, the request goes to its own dialog in \(context.hostAppName).")
+                }
+            }
+
             actions
         }
         .cardBackground()
