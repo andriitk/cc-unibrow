@@ -116,9 +116,9 @@ public struct FinishedSessions: Sendable, Equatable {
     /// Clears a session's notice when it becomes active again.
     public mutating func handle(_ event: HookEvent, sessionID: String) {
         switch event {
-        case .userPromptSubmit, .permissionRequest, .sessionEnd:
+        case .userPromptSubmit, .permissionRequest, .elicitation, .stopFailure, .sessionEnd:
             remove(sessionID: sessionID)
-        case .postToolUse, .postToolUseFailure, .permissionDenied, .stop:
+        case .postToolUse, .postToolUseFailure, .permissionDenied, .stop, .notification:
             break
         }
     }

@@ -22,14 +22,14 @@ struct NotchRootView: View {
     }
 
     private var mode: Mode {
-        if model.queue.isEmpty && model.finished.isEmpty { return .hidden }
+        if !model.hasContent { return .hidden }
         if island.isExpanded { return .expanded }
         if model.peek != nil { return .peek }
         return .compact
     }
 
     /// Something needs the user (orange), or only "done" notices are left (green).
-    private var needsAttention: Bool { !model.queue.isEmpty }
+    private var needsAttention: Bool { !model.queue.isEmpty || !model.alerts.isEmpty }
 
     private var width: CGFloat {
         let notch = island.notchSize.width
@@ -49,6 +49,7 @@ struct NotchRootView: View {
             .animation(.spring(response: 0.38, dampingFraction: 0.8), value: mode)
             .animation(.spring(response: 0.32, dampingFraction: 0.85), value: model.queue.count)
             .animation(.spring(response: 0.32, dampingFraction: 0.85), value: model.finished.count)
+            .animation(.spring(response: 0.32, dampingFraction: 0.85), value: model.alerts.count)
     }
 
 
@@ -85,6 +86,8 @@ struct NotchRootView: View {
                     switch model.peek {
                     case .request(let request):
                         PeekRow(request: request)
+                    case .alert(let alert):
+                        AlertPeekRow(alert: alert)
                     case .finished(let notice):
                         FinishedPeekRow(notice: notice)
                     case nil:
@@ -126,7 +129,7 @@ struct NotchRootView: View {
 
             Group {
                 if needsAttention {
-                    CountBadge(count: model.queue.count)
+                    CountBadge(count: model.queue.count + model.alerts.count)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
@@ -136,6 +139,32 @@ struct NotchRootView: View {
 }
 
 // MARK: - Pieces
+
+private struct ElicitationPeekRow: View {
+    let request: PendingRequest
+    let elicitation: ElicitationRequest
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: ElicitationCard.symbol(for: elicitation))
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.orange)
+                .frame(width: 18)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(request.projectName) · \(elicitation.serverName)")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.6))
+                    .lineLimit(1)
+                Text(elicitation.message.isEmpty ? "An MCP server asks for input" : elicitation.message)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+}
 
 /// A calm green check: something finished, nothing to do.
 private struct DoneMark: View {
@@ -205,7 +234,31 @@ private struct CountBadge: View {
             .frame(minWidth: 20, minHeight: 18)
             .background(Color.orange, in: Capsule())
             .contentTransition(.numericText())
-            .accessibilityLabel("\(count) pending approvals")
+            .accessibilityLabel("\(count) items need you")
+    }
+}
+
+private struct AlertPeekRow: View {
+    let alert: SessionAlert
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: alert.isFailure ? "exclamationmark.octagon.fill" : "person.crop.circle.badge.questionmark")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(alert.isFailure ? Color.red : Color.orange)
+                .frame(width: 18)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(alert.projectName)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.6))
+                Text(alert.headline)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            Spacer(minLength: 0)
+        }
     }
 }
 
@@ -213,6 +266,15 @@ private struct PeekRow: View {
     let request: PendingRequest
 
     var body: some View {
+        if let elicitation = request.elicitation {
+            ElicitationPeekRow(request: request, elicitation: elicitation)
+        } else {
+            toolRow
+        }
+    }
+
+    @ViewBuilder
+    private var toolRow: some View {
         let summary = ToolSummary(toolName: request.toolName, input: request.toolInput, cwd: request.cwd)
         HStack(spacing: 10) {
             Image(systemName: summary.symbol)

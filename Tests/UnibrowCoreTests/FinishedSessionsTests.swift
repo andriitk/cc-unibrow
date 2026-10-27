@@ -48,7 +48,7 @@ struct FinishedSessionsTests {
         #expect(feed.items.first?.summary == "second")
     }
 
-    @Test("Activity in the session clears its notice", arguments: [HookEvent.userPromptSubmit, .permissionRequest, .sessionEnd])
+    @Test("Activity in the session clears its notice", arguments: [HookEvent.userPromptSubmit, .permissionRequest, .elicitation, .stopFailure, .sessionEnd])
     func activityClears(event: HookEvent) {
         var feed = FinishedSessions(items: [FinishedSession(sessionID: "a", cwd: "/p")])
         feed.handle(event, sessionID: "a")

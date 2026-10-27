@@ -35,6 +35,9 @@ struct RequestListView: View {
                         }
                     }
                 }
+                if !model.alerts.isEmpty {
+                    AlertSection(model: model)
+                }
                 if !model.finished.isEmpty {
                     FinishedSection(model: model)
                 }
@@ -63,7 +66,17 @@ struct RequestListView: View {
         let context = RequestContext(request: request) {
             model.bringToFront(request)
         }
-        if request.isQuestion, let questions = UserQuestion.parse(request.toolInput) {
+        if let elicitation = request.elicitation {
+            ElicitationCard(
+                context: context,
+                elicitation: elicitation,
+                onAnswer: { model.answerElicitation(request, $0) },
+                onOpenLink: { model.openElicitationLink(request) },
+                onSendToTerminal: { model.sendToTerminal(request) }
+            )
+            // Fresh form state for every request.
+            .id(request.id)
+        } else if request.isQuestion, let questions = UserQuestion.parse(request.toolInput) {
             QuestionCard(
                 context: context,
                 questions: questions,

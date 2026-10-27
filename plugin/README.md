@@ -37,6 +37,8 @@ is minified or compiled.
 | Hook | What happens |
 |---|---|
 | `PermissionRequest` | Sends the request to the Unibrow app and waits for your answer in the notch. If the app is not running, is paused or anything fails, the hook prints nothing and Claude Code asks in the terminal as usual. Unibrow never answers on its own. |
+| `Elicitation` | An MCP server asks for input (a form or a link to open). Sends it to the app and waits for your answer in the notch; without the app, or on any failure, prints nothing and Claude Code shows its own dialog. |
+| `StopFailure`, `Notification` (`agent_needs_input` only) | Tells the app that a turn stopped on an API error or that a background agent needs input, so it can show an alert. These run in the background. |
 | `PostToolUse`, `PostToolUseFailure`, `PermissionDenied`, `UserPromptSubmit`, `Stop`, `SessionEnd` | Tells the app that a request was answered elsewhere or that a turn finished, so it can remove the card or show a “finished” notice. These run in the background. |
 | `SessionStart` | If the app is missing, starts the one-time install below. If the installed app is older than this plugin, starts the same process as an update. Otherwise does nothing. |
 

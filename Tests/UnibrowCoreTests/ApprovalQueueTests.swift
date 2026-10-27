@@ -53,7 +53,7 @@ struct ApprovalQueueTests {
         #expect(queue.count == 1)
     }
 
-    @Test("Turn boundaries clear every request of that session", arguments: [HookEvent.stop, .userPromptSubmit, .sessionEnd])
+    @Test("Turn boundaries clear every request of that session", arguments: [HookEvent.stop, .stopFailure, .userPromptSubmit, .sessionEnd])
     func turnBoundaryClearsSession(event: HookEvent) {
         var queue = ApprovalQueue(requests: [
             Fixtures.request(session: "s1", tool: "Bash"),
@@ -71,6 +71,17 @@ struct ApprovalQueueTests {
     func permissionRequestDoesNotResolve() {
         var queue = ApprovalQueue(requests: [Fixtures.request()])
         #expect(queue.resolve(after: .permissionRequest, payload: Fixtures.bashRequest).isEmpty)
+    }
+
+    @Test("An elicitation waits in the queue; tool events do not resolve it, the turn ending does")
+    func elicitationInQueue() throws {
+        let elicitation = try #require(PendingRequest(elicitationPayload: ElicitationTests.formPayload))
+        var queue = ApprovalQueue(requests: [elicitation])
+        let toolEvent = Fixtures.payload(#"{"session_id":"s1","tool_name":"Elicitation","tool_input":{}}"#)
+        #expect(queue.resolve(after: .postToolUse, payload: toolEvent).isEmpty)
+        #expect(queue.resolve(after: .elicitation, payload: ElicitationTests.formPayload).isEmpty)
+        #expect(queue.resolve(after: .notification, payload: Fixtures.payload(#"{"session_id":"s1"}"#)).isEmpty)
+        #expect(queue.resolve(after: .userPromptSubmit, payload: Fixtures.payload(#"{"session_id":"s1"}"#)).count == 1)
     }
 
     @Test("Expired requests are removed")

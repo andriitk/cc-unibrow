@@ -6,6 +6,20 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- MCP server requests (elicitations) in the notch. A form shows as native
+  fields (text, email, URL, date, numbers, yes/no, single and multiple
+  choice) with the server's rules checked before Submit; password- and
+  token-like fields are hidden. Sign-in links show the full URL with the real
+  host highlighted and look-alike tricks flagged, and open only when you
+  click Open. Submit, Decline and Cancel answer the server; forms the notch
+  cannot show, a paused or closed app, and a timeout leave the request to
+  Claude Code's own dialog.
+- An alert when a turn stops on an API error (rate limit, overload, sign-in,
+  billing and others), with the details one click away, and when a
+  background agent needs your input. Click to jump to the session.
+
 ### Security
 
 - The notch shows when a request is not fully visible. A long or multi-line

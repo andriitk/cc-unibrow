@@ -20,6 +20,12 @@ instead. You will get a reply within a few days.
   does not show, with `dangerouslyDisableSandbox` called out), it says so and
   offers "Show full …"; control, bidi and invisible characters are shown
   escaped. Allow is not blocked on opening it: that is the user's call.
+- **MCP servers are untrusted.** In an elicitation card the server name,
+  message, field titles, option titles and URL are escaped the same way and
+  capped; values sent back stay exact. A link opens only on a click, only for
+  `http`/`https`, with the real host highlighted and user names before `@`,
+  international host names and plain HTTP called out. Password- and
+  token-like fields are secure fields, and no value is logged.
 - **Least access.** The app never reads project files. Accessibility access is
   optional and used only to read window titles and raise one window.
 

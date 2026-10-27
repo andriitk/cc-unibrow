@@ -1,9 +1,21 @@
 import Foundation
 
-/// Builds the JSON a `PermissionRequest` hook prints to stdout.
+/// Builds the JSON a blocking hook prints to stdout.
 ///
-/// See https://code.claude.com/docs/en/hooks — `hookSpecificOutput.decision`.
+/// See https://code.claude.com/docs/en/hooks — `PermissionRequest`'s
+/// `hookSpecificOutput.decision` and `Elicitation`'s `hookSpecificOutput.action`.
 public enum HookOutput {
+    /// The stdout payload for `event`, or `nil` when the hook should print
+    /// nothing and let Claude Code ask in the terminal. A decision that does
+    /// not belong to the event (which would be a bug) also prints nothing.
+    public static func output(for event: HookEvent, _ decision: Decision) -> JSONValue? {
+        switch event {
+        case .permissionRequest: permissionRequest(decision)
+        case .elicitation: elicitation(decision)
+        default: nil
+        }
+    }
+
     /// Returns the stdout payload for a decision, or `nil` when the hook should
     /// print nothing and let Claude Code ask in the terminal.
     public static func permissionRequest(_ decision: Decision) -> JSONValue? {
@@ -23,7 +35,7 @@ public enum HookOutput {
                 "message": .string(message),
                 "interrupt": .bool(interrupt),
             ]
-        case .passthrough:
+        case .passthrough, .answerElicitation:
             return nil
         }
 
@@ -33,5 +45,19 @@ public enum HookOutput {
                 "decision": .object(body),
             ]),
         ])
+    }
+
+    /// `{"hookSpecificOutput": {"hookEventName": "Elicitation", "action": …,
+    /// "content": {…}}}`; `content` only for a form's accept.
+    public static func elicitation(_ decision: Decision) -> JSONValue? {
+        guard case .answerElicitation(let answer) = decision else { return nil }
+        var body: [String: JSONValue] = [
+            "hookEventName": .string(HookEvent.elicitation.rawValue),
+            "action": .string(answer.action),
+        ]
+        if case .accept(let content) = answer, !content.isEmpty {
+            body["content"] = .object(content)
+        }
+        return .object(["hookSpecificOutput": .object(body)])
     }
 }

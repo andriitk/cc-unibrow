@@ -21,18 +21,26 @@ final class AppModel {
     /// Sessions that finished their turn: an FYI, nothing waits for the user.
     private(set) var finished = FinishedSessions()
 
-    /// What briefly peeks out of the notch: a new request, or a session that
-    /// just finished.
+    /// Sessions that need the user without a request to answer: the turn
+    /// failed on an API error, or a background agent waits for input.
+    private(set) var alerts = SessionAlerts()
+
+    /// What briefly peeks out of the notch: a new request, an alert, or a
+    /// session that just finished.
     enum Peek: Equatable {
         case request(PendingRequest)
+        case alert(SessionAlert)
         case finished(FinishedSession)
     }
 
+    /// Whether the island has anything to show.
+    var hasContent: Bool { !queue.isEmpty || !alerts.isEmpty || !finished.isEmpty }
+
     private(set) var peek: Peek?
 
-    /// While paused, Unibrow steps aside: every request goes straight to the
-    /// terminal prompt and nothing shows in the notch, finished notices
-    /// included.
+    /// While paused, Unibrow steps aside: every request and elicitation goes
+    /// straight to the terminal prompt and nothing shows in the notch, alerts
+    /// and finished notices included.
     var isPaused: Bool {
         didSet {
             defaults.set(isPaused, forKey: Keys.paused)
@@ -50,7 +58,9 @@ final class AppModel {
         didSet { defaults.set(playsSound, forKey: Keys.playsSound) }
     }
 
-    /// Show a quiet "done" notice when a session finishes its turn.
+    /// Show a quiet "done" notice when a session finishes its turn. Alerts (a
+    /// failed turn, an agent waiting for input) are not "done" notices and
+    /// show either way: they need the user.
     var showsFinishedSessions: Bool {
         didSet {
             defaults.set(showsFinishedSessions, forKey: Keys.showsFinishedSessions)
@@ -195,6 +205,25 @@ final class AppModel {
         server.respond(to: request.id, with: .allowWithInput(updatedInput: input))
     }
 
+    /// Answers an MCP elicitation from its card.
+    func answerElicitation(_ request: PendingRequest, _ answer: ElicitationAnswer) {
+        guard request.elicitation != nil, queue.remove(id: request.id) != nil else { return }
+        clearPeek(ifShowing: request)
+        server.respond(to: request.id, with: .answerElicitation(answer))
+    }
+
+    /// URL mode: opens the link in the browser, then accepts. Claude Code
+    /// does not open it itself once a hook accepted.
+    func openElicitationLink(_ request: PendingRequest) {
+        guard case .url(let link)? = request.elicitation?.content, let url = link.openableURL else { return }
+        guard NSWorkspace.shared.open(url) else {
+            // Could not open it: let the terminal dialog handle it.
+            sendToTerminal(request)
+            return
+        }
+        answerElicitation(request, .accept(content: [:]))
+    }
+
     /// Hands the request back to the terminal prompt.
     func sendToTerminal(_ request: PendingRequest) {
         guard queue.remove(id: request.id) != nil else { return }
@@ -214,6 +243,17 @@ final class AppModel {
         clearPeek(ifShowing: notice)
     }
 
+    /// Opens the session an alert is about and clears the alert.
+    func open(_ alert: SessionAlert) {
+        bringToFront(hostPID: alert.hostPID, projectRoot: alert.projectRoot, cwd: alert.cwd)
+        dismiss(alert)
+    }
+
+    func dismiss(_ alert: SessionAlert) {
+        alerts.remove(sessionID: alert.sessionID)
+        clearPeek(ifShowing: alert)
+    }
+
     /// Hands every waiting request back to the terminal and clears the notch.
     private func stepAside() {
         for request in queue.requests {
@@ -221,6 +261,7 @@ final class AppModel {
             _ = queue.remove(id: request.id)
         }
         clearFinished()
+        alerts.removeAll()
         peek = nil
     }
 
@@ -303,11 +344,18 @@ final class AppModel {
                         clearPeek(ifShowing: notice)
                     }
                 }
+                // The session moved on: its alert is stale.
+                if let alert = alerts.handle(message.event, sessionID: sessionID) {
+                    clearPeek(ifShowing: alert)
+                }
             }
             if message.event == .stop {
                 recordFinished(payload, message: message, hookPID: peerPID)
             }
-            if message.event == .permissionRequest {
+            if let alert = SessionAlert(event: message.event, payload: payload) {
+                recordAlert(alert, message: message, hookPID: peerPID)
+            }
+            if message.event.expectsDecision {
                 enqueue(payload, message: message, connection: id, hookPID: peerPID)
             } else {
                 for request in queue.resolve(after: message.event, payload: payload) {
@@ -329,9 +377,12 @@ final class AppModel {
         connection id: ApprovalServer.ConnectionID,
         hookPID: pid_t?
     ) {
+        let parsed = message.event == .elicitation
+            ? PendingRequest(elicitationPayload: payload, propertyOrder: message.propertyOrder, id: id)
+            : PendingRequest(payload: payload, id: id)
         guard !isPaused,
               queue.count < Self.maxPendingRequests,
-              var request = PendingRequest(payload: payload, id: id)
+              var request = parsed
         else {
             server.respond(to: id, with: .passthrough)
             return
@@ -365,6 +416,22 @@ final class AppModel {
         }
     }
 
+    private func recordAlert(_ alert: SessionAlert, message: HookMessage, hookPID: pid_t?) {
+        guard !isPaused else { return }
+        var alert = alert
+        alert.branch = message.branch
+        alert.projectRoot = message.projectRoot
+        Task {
+            let app = await Self.hostApp(for: message, hookPID: hookPID)
+            alert.hostPID = app?.processIdentifier
+            // Paused, or the session moved on, while the host app was looked up.
+            guard !isPaused, !queue.requests.contains(where: { $0.sessionID == alert.sessionID }) else { return }
+            alerts.record(alert)
+            if playsSound { NSSound(named: "Tink")?.play() }
+            showPeek(.alert(alert))
+        }
+    }
+
     /// The terminal or IDE a hook runs in. Prefers the ancestor chain the
     /// hook sent; otherwise walks from the hook process, off the main thread
     /// because it may ask tmux.
@@ -382,6 +449,8 @@ final class AppModel {
     private func sweepExpired() {
         finished.removeExpired(now: .now)
         if case .finished(let notice) = peek, !finished.items.contains(notice) { peek = nil }
+        alerts.removeExpired(now: .now)
+        if case .alert(let alert) = peek, !alerts.items.contains(alert) { peek = nil }
         for request in queue.removeExpired(now: .now, maxAge: Self.maxRequestAge) {
             server.drop(request.id)
             clearPeek(ifShowing: request)
@@ -391,8 +460,12 @@ final class AppModel {
     // MARK: - Peek
 
     private func showPeek(_ newPeek: Peek) {
-        // A finished notice never covers a request that is still peeking.
-        if case .finished = newPeek, case .request = peek { return }
+        // A finished notice never covers a request or an alert that is still
+        // peeking, and an alert never covers a request.
+        switch (newPeek, peek) {
+        case (.finished, .request?), (.finished, .alert?), (.alert, .request?): return
+        default: break
+        }
         peek = newPeek
         peekTask?.cancel()
         peekTask = Task { [weak self] in
@@ -404,6 +477,10 @@ final class AppModel {
 
     private func clearPeek(ifShowing request: PendingRequest) {
         if case .request(let shown) = peek, shown.id == request.id { peek = nil }
+    }
+
+    private func clearPeek(ifShowing alert: SessionAlert) {
+        if case .alert(let shown) = peek, shown.sessionID == alert.sessionID { peek = nil }
     }
 
     private func clearPeek(ifShowing notice: FinishedSession) {

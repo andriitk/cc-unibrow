@@ -17,6 +17,11 @@ no analytics, no telemetry and no crash reporting.
   session ID, the working directory, the git branch, and the last assistant
   message when a turn finishes. They go from the hook to the Unibrow app on the
   same Mac over a Unix socket that only your user can open.
+- **MCP server requests** (elicitations): the server name, its message, the
+  form it asks you to fill in or the link it asks you to open, and the values
+  you submit, which go back to Claude Code only. **Alerts**: the API error
+  type and message when a turn fails, and the text of an "agent needs input"
+  notification. None of it is logged or written to disk.
 - **Process IDs and window titles**, used only to find and raise the window a
   session runs in. Window titles are read only if you turn on *Exact Window
   Focus* and grant Accessibility access.
