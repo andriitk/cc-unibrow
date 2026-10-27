@@ -248,13 +248,11 @@ public struct ToolSummary: Sendable, Equatable {
     /// Makes characters that could hide or rearrange text visible: control
     /// characters (`\r`, ANSI `ESC`, backspace…), bidi overrides and isolates,
     /// zero-width and other invisible format characters, Unicode line breaks.
-    /// Newlines and tabs stay, so code still reads as code. ZWJ stays too:
-    /// it only joins emoji.
+    /// Newlines and tabs stay, so code still reads as code; so do ZWJ and
+    /// emoji variation selectors right after an emoji.
     static func escaped(_ text: String) -> (text: String, changed: Bool) {
         var previous: Unicode.Scalar?
-        guard text.unicodeScalars.contains(where: { defer { previous = $0 }; return needsEscape($0, after: previous) })
-        else { return (text, false) }
-        previous = nil
+        var changed = false
         var result = String.UnicodeScalarView()
         for scalar in text.unicodeScalars {
             defer { previous = scalar }
@@ -262,6 +260,7 @@ public struct ToolSummary: Sendable, Equatable {
                 result.append(scalar)
                 continue
             }
+            changed = true
             let escape: String
             switch scalar {
             case "\r": escape = "\\r"
@@ -270,7 +269,7 @@ public struct ToolSummary: Sendable, Equatable {
             }
             result.append(contentsOf: escape.unicodeScalars)
         }
-        return (String(result), true)
+        return changed ? (String(result), true) : (text, false)
     }
 
     private static func needsEscape(_ scalar: Unicode.Scalar, after previous: Unicode.Scalar?) -> Bool {
