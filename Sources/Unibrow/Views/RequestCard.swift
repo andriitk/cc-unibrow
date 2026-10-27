@@ -64,13 +64,6 @@ struct RequestCard: View {
         }
     }
 
-    /// Allow needs the whole input on screen: it fits in the headline, or the
-    /// user opened this request's detail, and nothing was cut from it. Deny
-    /// never waits.
-    private func canAllow(_ review: ToolSummary.Review) -> Bool {
-        review.allowsApproval(of: request.id, reviewedRequestID: reviewedRequestID)
-    }
-
     private static func hasNotes(_ review: ToolSummary.Review) -> Bool {
         review.isMultiLine || review.isTruncated || review.hasEscapedCharacters
             || review.hasNonASCII || !review.extraKeys.isEmpty
@@ -80,9 +73,11 @@ struct RequestCard: View {
         let review = summary.review
         let mustReview = review.requiresExpanding && reviewedRequestID != request.id
         let noun = review.extraKeys.isEmpty ? Self.noun(for: request.toolName) : "input"
+        // Allow is never gated: the notes and "Show full …" make hidden content
+        // visible, and the user decides whether to open it.
         let allowHelp = !review.canApproveHere
-            ? "Too long to show here in full. Answer in \(context.hostAppName)."
-            : mustReview ? "Open the full \(noun) first" : nil
+            ? "Too long to show here in full. Open it in \(context.hostAppName) to read all of it."
+            : mustReview ? "Not all of the \(noun) is shown; open it to check" : nil
         return HStack(spacing: 6) {
             if summary.detail != nil {
                 Button {
@@ -109,13 +104,11 @@ struct RequestCard: View {
             if !request.suggestions.isEmpty {
                 Button("Always") { onDecide(.allowAlways) }
                     .buttonStyle(.pill(.secondary))
-                    .disabled(!canAllow(review))
                     .help(allowHelp ?? "Allow and don't ask again for this kind of call")
             }
 
             Button(request.isPlanApproval ? "Approve" : "Allow") { onDecide(.allow) }
                 .buttonStyle(.pill(.primary))
-                .disabled(!canAllow(review))
                 .help(allowHelp ?? (request.isPlanApproval ? "Approve the plan and start working" : "Run this tool call once"))
         }
     }
