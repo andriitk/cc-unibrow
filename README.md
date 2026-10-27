@@ -104,7 +104,7 @@ Works on MacBooks with and without a notch, and on external displays.
 
 | You see | It means | Do |
 |---|---|---|
-| 🟠 pulsing dot and a number | Claude is waiting for you in that many places | Hover the notch |
+| 🟠 pulsing dot and a number | Claude (or an MCP server) is waiting for you in that many places, or a session stopped on an error | Hover the notch |
 | 🟢 small check, no number | A session finished its answer. Nothing to do | Hover to see which one, or ignore it |
 | A short slide-down for a few seconds | Something just arrived | Read it, or hover to act |
 
@@ -129,6 +129,25 @@ URL or use an MCP tool. You see the exact command or a diff of the edit.
 **Plans.** Claude finished a plan in plan mode. **Approve** to start, or
 **Keep Planning** to ask for changes.
 
+**MCP server requests.** An MCP server asks for input mid-task. A **form**
+(text, numbers, dates, emails, yes/no, choices) shows as native fields with
+the server's checks; password- and token-like fields are hidden as you type.
+**Submit**, **Decline** or **Cancel**, as in the terminal. A **sign-in link**
+shows the full URL with the real host highlighted and look-alike tricks
+called out (international host names as punycode, no HTTPS); **Open** opens
+it in your browser. Nothing opens by itself, and a link with a user name
+before the host or characters browsers read differently is shown but not
+opened. A form the notch cannot
+show offers **Answer in Terminal**. While such a card waits, Claude Code shows
+no dialog of its own (it waits for the notch), so the card counts down: after
+about two minutes, or right away with **Answer in …**, the request moves to
+Claude Code's own dialog.
+
+**Alerts.** A red row when a turn stops on an API error (rate limit,
+overload, sign-in, billing…), with the error details one click away, and an
+orange row when a background agent needs your input. Click to jump to the
+session; the row goes away once the session moves on.
+
 **Finished.** A quiet green row when a session completes its turn. No sound,
 no number. Click it to jump to that session; it disappears by itself when you
 send your next message there.
@@ -150,10 +169,10 @@ Click the eyebrow in the menu bar:
 
 | Setting | Default | What it does |
 |---|---|---|
-| Pause (ask in Terminal) | off | Unibrow steps aside: every prompt goes to the terminal (including ones already waiting in the notch) and nothing shows in the notch, finished notices included. The eyebrow closes its eyes. |
+| Pause (ask in Terminal) | off | Unibrow steps aside: every prompt and MCP request goes to the terminal (including ones already waiting in the notch) and nothing shows in the notch, alerts and finished notices included. The eyebrow closes its eyes. |
 | Deny Stops the Turn | on | After **Deny**, Claude stops and waits for you. Off: Claude tries another approach. |
 | Play Sound | on | A soft *tink* when Claude needs you. Finished notices are always silent. |
-| Show Finished Sessions | on | The green “done” rows. |
+| Show Finished Sessions | on | The green “done” rows. Alerts (a stopped turn, an agent waiting for input) show either way. |
 | Launch at Login | off | Start Unibrow with your Mac. |
 | Exact Window Focus | off | Jump to the session’s *own* window, not just its app. See below. |
 

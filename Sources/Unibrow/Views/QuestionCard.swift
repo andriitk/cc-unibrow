@@ -182,7 +182,8 @@ private struct QuestionBlock: View {
     }
 }
 
-private struct OptionRow: View {
+/// One selectable option; also used by `ElicitationCard`.
+struct OptionRow: View {
     let label: String
     let description: String?
     let isSelected: Bool

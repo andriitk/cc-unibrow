@@ -18,6 +18,9 @@ public struct PendingRequest: Sendable, Identifiable, Hashable {
     public var agentType: String?
     /// Root of the git repository the session works in, if any.
     public var projectRoot: String?
+    /// Set for an MCP elicitation (an `Elicitation` hook), which waits in the
+    /// queue like a permission request but asks for a form or a URL.
+    public var elicitation: ElicitationRequest?
 
     public init(
         id: UUID = UUID(),
@@ -53,6 +56,36 @@ public struct PendingRequest: Sendable, Identifiable, Hashable {
         agentType = payload.agentType
     }
 
+    /// Builds a request from an `Elicitation` hook payload. The tool name is
+    /// the event name, so tool events never match it.
+    public init?(elicitationPayload payload: HookPayload, propertyOrder: [String]? = nil, id: UUID = UUID(), receivedAt: Date = .now) {
+        guard let sessionID = payload.sessionID,
+              let elicitation = ElicitationRequest(payload: payload, propertyOrder: propertyOrder)
+        else { return nil }
+        self.init(
+            id: id,
+            sessionID: sessionID,
+            cwd: payload.cwd ?? "",
+            toolName: HookEvent.elicitation.rawValue,
+            toolInput: payload.raw["requested_schema"] ?? .object([:]),
+            receivedAt: receivedAt
+        )
+        self.elicitation = elicitation
+        agentType = payload.agentType
+    }
+
+    /// When the relay stops waiting and Claude Code asks in the terminal
+    /// instead; `nil` for requests that wait until Claude Code ends the hook.
+    public var answerDeadline: Date? {
+        guard elicitation != nil, let seconds = HookEvent.elicitation.answerDeadline else { return nil }
+        return receivedAt.addingTimeInterval(seconds)
+    }
+
+    /// Whole seconds left before `answerDeadline` (never negative).
+    public func secondsLeft(now: Date) -> Int? {
+        answerDeadline.map { max(0, Int($0.timeIntervalSince(now).rounded(.up))) }
+    }
+
     /// Claude asks to leave plan mode and start working.
     public var isPlanApproval: Bool { toolName == "ExitPlanMode" }
 
@@ -60,7 +93,9 @@ public struct PendingRequest: Sendable, Identifiable, Hashable {
     public var sessionTag: String { String(sessionID.prefix(4)) }
 
     /// Whether this request asks the user a question instead of permission.
-    public var isQuestion: Bool { toolName == UserQuestion.toolName && UserQuestion.parse(toolInput) != nil }
+    public var isQuestion: Bool {
+        elicitation == nil && toolName == UserQuestion.toolName && UserQuestion.parse(toolInput) != nil
+    }
 
     /// Project name shown in the UI: the last path component of `cwd`.
     public var projectName: String {
@@ -116,7 +151,7 @@ public struct ApprovalQueue: Sendable, Equatable {
         guard let sessionID = payload.sessionID else { return [] }
 
         switch event {
-        case .permissionRequest:
+        case .permissionRequest, .elicitation, .notification:
             return []
 
         case .postToolUse, .postToolUseFailure, .permissionDenied:
@@ -130,7 +165,7 @@ public struct ApprovalQueue: Sendable, Equatable {
             }) else { return [] }
             return [requests.remove(at: index)]
 
-        case .userPromptSubmit, .stop, .sessionEnd:
+        case .userPromptSubmit, .stop, .stopFailure, .sessionEnd:
             // The turn is over (or a new one started): nothing from this
             // session can still be waiting.
             return removeAll { $0.sessionID == sessionID }
@@ -143,10 +178,14 @@ public struct ApprovalQueue: Sendable, Equatable {
         removeAll { $0.sessionID == sessionID }
     }
 
-    /// Removes requests older than `maxAge`. A safety net for signals we miss.
+    /// Removes requests older than `maxAge`, or past their own answer
+    /// deadline. A safety net for signals we miss.
     @discardableResult
     public mutating func removeExpired(now: Date, maxAge: TimeInterval) -> [PendingRequest] {
-        removeAll { now.timeIntervalSince($0.receivedAt) > maxAge }
+        removeAll { request in
+            now.timeIntervalSince(request.receivedAt) > maxAge
+                || request.answerDeadline.map { now >= $0 } == true
+        }
     }
 
     /// Requests grouped by project, preserving arrival order in and across groups.

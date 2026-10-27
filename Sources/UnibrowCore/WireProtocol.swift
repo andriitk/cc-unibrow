@@ -7,7 +7,7 @@ public import Foundation
 ///
 /// ```
 /// hook ──HookMessage──▶ app                      (every event)
-/// hook ◀──DecisionMessage── app                  (PermissionRequest only)
+/// hook ◀──DecisionMessage── app                  (PermissionRequest, Elicitation)
 /// ```
 ///
 /// For a permission request the hook keeps the connection open until the app
@@ -47,6 +47,9 @@ public struct HookMessage: Sendable, Codable, Hashable {
     /// The hook's ancestor PIDs, nearest first. Sent by the hook because an
     /// asynchronous hook has exited by the time the app reads its message.
     public var ancestorPIDs: [Int32]?
+    /// `Elicitation` only: the form's property names in the order the server
+    /// wrote them, read from the raw input (decoded objects lose their order).
+    public var propertyOrder: [String]?
 
     public init(
         event: HookEvent,
@@ -54,6 +57,7 @@ public struct HookMessage: Sendable, Codable, Hashable {
         branch: String? = nil,
         projectRoot: String? = nil,
         ancestorPIDs: [Int32]? = nil,
+        propertyOrder: [String]? = nil,
         version: Int = WireProtocol.version
     ) {
         self.version = version
@@ -62,10 +66,11 @@ public struct HookMessage: Sendable, Codable, Hashable {
         self.branch = branch
         self.projectRoot = projectRoot
         self.ancestorPIDs = ancestorPIDs
+        self.propertyOrder = propertyOrder
     }
 }
 
-/// The app's answer to a permission request.
+/// The app's answer to a permission request or an MCP elicitation.
 public struct DecisionMessage: Sendable, Codable, Hashable {
     public var version: Int
     public var decision: Decision
@@ -89,17 +94,19 @@ public enum Decision: Sendable, Hashable {
     /// Refuse the tool. With `interrupt`, Claude stops the turn and waits for
     /// the next prompt instead of trying something else.
     case deny(message: String, interrupt: Bool)
+    /// Answer an MCP elicitation (`Elicitation` hook only).
+    case answerElicitation(ElicitationAnswer)
     /// Let Claude Code show its normal terminal prompt.
     case passthrough
 }
 
 extension Decision: Codable {
     private enum CodingKeys: String, CodingKey {
-        case behavior, updatedPermissions, updatedInput, message, interrupt
+        case behavior, updatedPermissions, updatedInput, message, interrupt, action, content
     }
 
     private enum Behavior: String, Codable {
-        case allow, allowAlways, allowWithInput, deny, passthrough
+        case allow, allowAlways, allowWithInput, deny, elicitation, passthrough
     }
 
     public init(from decoder: any Decoder) throws {
@@ -118,6 +125,17 @@ extension Decision: Codable {
                 message: try container.decodeIfPresent(String.self, forKey: .message) ?? "",
                 interrupt: try container.decodeIfPresent(Bool.self, forKey: .interrupt) ?? false
             )
+        case .elicitation:
+            switch try container.decode(String.self, forKey: .action) {
+            case "accept":
+                self = .answerElicitation(.accept(
+                    content: try container.decodeIfPresent([String: JSONValue].self, forKey: .content) ?? [:]
+                ))
+            case "decline": self = .answerElicitation(.decline)
+            case "cancel": self = .answerElicitation(.cancel)
+            default:
+                throw DecodingError.dataCorruptedError(forKey: .action, in: container, debugDescription: "Unknown action")
+            }
         case .passthrough:
             self = .passthrough
         }
@@ -138,6 +156,12 @@ extension Decision: Codable {
             try container.encode(Behavior.deny, forKey: .behavior)
             try container.encode(message, forKey: .message)
             try container.encode(interrupt, forKey: .interrupt)
+        case .answerElicitation(let answer):
+            try container.encode(Behavior.elicitation, forKey: .behavior)
+            try container.encode(answer.action, forKey: .action)
+            if case .accept(let content) = answer {
+                try container.encode(content, forKey: .content)
+            }
         case .passthrough:
             try container.encode(Behavior.passthrough, forKey: .behavior)
         }

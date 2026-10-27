@@ -3,8 +3,8 @@
 //   unibrow-hook <HookEventName>   (hook JSON on stdin)
 //
 // It forwards the event to the Unibrow app over a Unix socket. For
-// `PermissionRequest` it waits for the user's decision and prints it in the
-// format Claude Code expects.
+// `PermissionRequest` and `Elicitation` it waits for the user's answer and
+// prints it in the format Claude Code expects.
 //
 // Golden rule: this process must never break a Claude Code session. Every
 // failure (app not running, bad input, socket error) ends in exit 0 with no
@@ -24,16 +24,19 @@ func relay() -> Data? {
     guard let fd = try? UnixSocket.connect(path: Paths.socketPath()) else { return nil }
     defer { close(fd) }
 
-    // Session details for the cards that show them (requests and "finished"
-    // notices): repository, and the process chain that leads to the app.
-    let needsRepository = event.expectsDecision || event == .stop
+    // Session details for the cards that show them (requests, alerts and
+    // "finished" notices): repository, and the process chain that leads to the app.
+    let needsRepository = event.needsSessionDetails
     let repository = needsRepository ? payload.cwd.flatMap { GitBranch.repository(containing: $0) } : nil
     let message = HookMessage(
         event: event,
         payload: payload.raw,
         branch: repository?.branch,
         projectRoot: repository?.root,
-        ancestorPIDs: needsRepository ? ProcessAncestry.candidates(of: getpid()) : nil
+        ancestorPIDs: needsRepository ? ProcessAncestry.candidates(of: getpid()) : nil,
+        propertyOrder: event == .elicitation
+            ? JSONKeyOrder.keys(in: input, at: ["requested_schema", "properties"])
+            : nil
     )
     guard let frame = try? WireProtocol.frame(message),
           (try? UnixSocket.writeAll(frame, to: fd)) != nil
@@ -48,11 +51,20 @@ func relay() -> Data? {
     // Safety net: if our parent dies without killing us, we are re-parented to
     // launchd (PID 1). Nobody can read our answer any more, so exit and free
     // the request instead of waiting for the hook timeout.
+    //
+    // An elicitation also has a deadline: Claude Code shows no dialog while
+    // this hook runs, so after `answerDeadline` the relay prints nothing and
+    // the dialog appears (closing the socket also drops the card).
     let parent = getppid()
-    let isOrphaned = { getppid() != parent || getppid() == 1 }
-    guard let line = try? UnixSocket.readLine(from: fd, shouldGiveUp: isOrphaned),
+    let started = Date()
+    let deadline = event.answerDeadline
+    let shouldGiveUp = {
+        getppid() != parent || getppid() == 1
+            || deadline.map { Date().timeIntervalSince(started) >= $0 } == true
+    }
+    guard let line = try? UnixSocket.readLine(from: fd, shouldGiveUp: shouldGiveUp),
           let reply = try? WireProtocol.unframe(DecisionMessage.self, from: line),
-          let output = HookOutput.permissionRequest(reply.decision)
+          let output = HookOutput.output(for: event, reply.decision)
     else { return nil }
 
     return try? output.encoded()

@@ -6,7 +6,28 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- MCP server requests (elicitations) in the notch. A form shows as native
+  fields (text, email, URL, date, numbers, yes/no, single and multiple
+  choice) with the server's rules checked before Submit; password- and
+  token-like fields are hidden. Sign-in links show the full URL with the real
+  host highlighted (international names as punycode) and open only when you
+  click Open; links with a user name before the host, an encoded host or
+  characters browsers read differently are shown but not opened. Submit,
+  Decline and Cancel answer the server. Claude Code shows no dialog while
+  the card waits, so the card counts down and after about two minutes (110
+  seconds) the request moves to Claude Code's own dialog; forms the notch
+  cannot show and a paused or closed app go there right away.
+- An alert when a turn stops on an API error (rate limit, overload, sign-in,
+  billing and others), with the details one click away, and when a
+  background agent needs your input. Click to jump to the session.
+
 ### Security
+
+- Without the app, the plugin's hook script now reads its whole input before
+  exiting, so Claude Code 2.1.299+ never sees a hook it "could not hand its
+  input" (which it may answer with a refusal) and keeps asking as usual.
 
 - The notch shows when a request is not fully visible. A long or multi-line
   command, an edit, file contents or a plan is marked (line count, cut or

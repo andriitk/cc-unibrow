@@ -5,7 +5,7 @@ Unibrow has three parts: a Claude Code **plugin** that registers hooks, a tiny
 
 ```
  Claude Code session ──PermissionRequest──▶ plugin shim ─▶ unibrow-hook ──┐
- Claude Code session ──PermissionRequest──▶ plugin shim ─▶ unibrow-hook ──┤  Unix socket
+ Claude Code session ──Elicitation────────▶ plugin shim ─▶ unibrow-hook ──┤  Unix socket
  Claude Code session ──PostToolUse/Stop…──▶ plugin shim ─▶ unibrow-hook ──┤  ~/Library/Application Support/cc-unibrow/unibrow.sock
                                                                             ▼
                                                               Unibrow.app (notch + menu bar)
@@ -27,8 +27,11 @@ Unibrow has three parts: a Claude Code **plugin** that registers hooks, a tiny
 | Event | Mode | Used for |
 |---|---|---|
 | `PermissionRequest` | blocking, 1 h timeout | The cards: tool permissions, `AskUserQuestion`, `ExitPlanMode`. |
+| `Elicitation` | blocking, 120 s timeout | MCP server requests: a form or a URL to open (below). The relay gives up after 110 s. |
+| `StopFailure` | async | The turn ended on an API error: drop the session's cards, show an alert. |
+| `Notification` (matcher `agent_needs_input`) | async | A background agent waits for input: show an alert. |
 | `PostToolUse`, `PostToolUseFailure`, `PermissionDenied` | async | A request was answered elsewhere: drop its card. |
-| `UserPromptSubmit`, `SessionEnd` | async | The session moved on: drop its cards and its “finished” notice. |
+| `UserPromptSubmit`, `SessionEnd` | async | The session moved on: drop its cards, alert and “finished” notice. |
 | `Stop` | async | The turn ended: drop leftover cards, show a “finished” notice. |
 | `SessionStart` | sync, 5 s | Installs a missing app, or updates one older than the plugin (below). |
 
@@ -70,14 +73,94 @@ compact JSON (compact JSON never contains a raw newline).
 
 ```
 hook ──HookMessage──────▶ app      every event
-hook ◀──DecisionMessage── app      PermissionRequest only
+hook ◀──DecisionMessage── app      PermissionRequest, Elicitation
 ```
 
 `HookMessage` carries the raw hook payload untouched, so fields Claude Code adds
 later survive, plus `branch`, `projectRoot` and `ancestorPIDs` gathered by the
 relay. `DecisionMessage` is one of `allow`, `allowAlways` (forwards Claude Code's
 own `permission_suggestions` as `updatedPermissions`), `allowWithInput` (question
-answers), `deny` (with `interrupt`) and `passthrough`.
+answers), `deny` (with `interrupt`), `elicitation` (`action` accept, decline
+or cancel, with `content` for a form) and `passthrough`. The relay prints a
+decision only for the event it belongs to; anything else prints nothing. For
+an `Elicitation` the relay also sends `propertyOrder`, the form's property
+names read from the raw input, because decoded JSON objects lose their order.
+
+## MCP elicitations
+
+An `Elicitation` hook waits in the same queue as permission requests
+(`PendingRequest.elicitation`), so pausing, the 100-request cap, grouping by
+project, the one-hour expiry and the connection-closed rule all apply.
+`ElicitationRequest` turns the payload into one of three cards:
+
+- **Form.** `ElicitationForm` accepts the MCP schema subset: a flat object of
+  `string` (formats `email`, `uri`, `date`, `date-time`, `minLength`,
+  `maxLength`), `number`/`integer` (`minimum`, `maximum`), `boolean`, single
+  choice (`enum` with optional `enumNames`, or `oneOf` of `{const, title}`)
+  and multiple choice (`array` of such `items`, `minItems`, `maxItems`), with
+  `required`, `title`, `description` and `default`. Values are validated in
+  the core; `content` holds only valid, non-empty values keyed by property
+  name. Fields whose name, title or format look like a password or token are
+  secure fields. Values are never logged.
+- **URL.** `ElicitationLink` parses the URL once with `URLComponents`; the
+  scheme, user info, host and the rest shown on the card, and the URL that
+  opens, all come from that one parse, so a parser differential cannot show
+  one host and open another (`https://good.com\@evil.com`). The host is
+  highlighted; an international host is shown as punycode with its Unicode
+  form flagged. The link opens only on a click, and only when it is `http` or
+  `https`, has a host, no user info, no percent-encoded host, no `\`,
+  whitespace, control or format characters, and the parsed URL is exactly
+  the text sent (international host to punycode is the only rewrite allowed).
+  Otherwise the card says why and offers the terminal. **Open** opens the
+  browser and answers `accept`, since Claude Code does not open the URL itself
+  once a hook accepted.
+- **Unsupported** (another type, a nested or malformed schema, more than 25
+  fields or 100 options, a URL request without a URL): the card offers
+  **Answer in Terminal** (no output, so Claude Code shows its dialog) and
+  Decline. Claude Code 2.1.296 already rejects schemas outside the MCP subset
+  before hooks run, so in practice this is mostly the size limits.
+
+Every server string shown (server name, message, titles, descriptions, option
+titles, URL parts) is escaped with `ToolSummary`'s rules and capped. Values
+sent back (property names, option `const`s, the URL opened) stay exact.
+
+**Measured with Claude Code 2.1.296** (a stdio MCP server in an interactive
+session): Claude Code runs the `Elicitation` hook *before* it shows its own
+dialog and shows the dialog only if the hook prints nothing. So while a card
+waits, the terminal shows "running Elicitation hook" and no dialog; this is
+different from a permission request. Pressing Esc in the terminal interrupts
+the turn but does not end the hook; the dialog then appears once the hook
+returns. The `elicitation_response` notification carries only the server name
+in its message text and no elicitation ID, so Unibrow does not use it to drop
+cards. A card leaves the notch when it is answered, sent to the terminal, when
+the hook ends (EOF), when the session moves on (`UserPromptSubmit`, `Stop`,
+`StopFailure`, `SessionEnd`), or at its deadline. Elicitations from
+`claude -p` never reach hooks (Claude Code cancels them).
+
+Because the terminal has no dialog while a card waits, an elicitation waits
+only briefly: the hook's `timeout` is 120 s (`HookEvent.elicitationHookTimeout`)
+and the relay itself stops waiting after 110 s
+(`HookEvent.elicitationAnswerSeconds`), prints nothing and exits 0, so Claude
+Code shows its own dialog. Ending before the timeout keeps it a clean "no
+decision" rather than a hook Claude Code had to cut off. The card shows a
+countdown ("Moves to Terminal in 1:42", orange in the last 20 s), and the
+socket closing at the deadline drops it; the app also drops it two seconds
+after the deadline in case the relay did not. A test checks that `hooks.json`
+and the constants agree. Permission requests keep the one-hour timeout: the
+terminal shows its own prompt alongside the card.
+
+## Alerts
+
+`SessionAlert` covers what needs the user without a request to answer:
+`StopFailure` (the error type mapped to a readable title and a hint, the
+escaped `error_details` and API error text behind **Details**) and
+`agent_needs_input` notifications. One alert per session; a new one replaces
+the old. It goes away when the user opens or dismisses it, when the session
+moves on (`UserPromptSubmit`, `Stop`, `SessionEnd`, a new request; tool
+activity also clears an "agent needs input" alert), or after 30 minutes.
+Pause hides alerts like everything else. **Show Finished Sessions** does not
+apply to them: a failed turn or a waiting agent is not a "done" FYI, it needs
+the user. They play the request sound when sounds are on.
 
 ## Safety guarantees
 
@@ -119,6 +202,73 @@ always available.
 with mode `0600`, and the server checks the peer's UID. The app never reads
 project files, so macOS never asks for access to Documents or Desktop; the relay,
 which runs inside the user's terminal, reads the git branch instead.
+
+## Claude Code 2.1.299: plugin hooks fail closed
+
+Claude Code 2.1.299 changed "actions a plugin hook can block to be refused,
+not let through, when the hook cannot be handed them or cannot hand back its
+answer; a tool that already ran has its result withheld". This note is an
+analysis made on 2.1.296; two changes followed from it (the shim drains
+stdin, and elicitations end before their hook timeout).
+
+**Why Unibrow's fail-open is not "let through".** When the app is absent,
+paused or broken, the relay exits 0 with no output. For `PermissionRequest`
+and `Elicitation` that is a documented, valid answer: "no decision, ask the
+user". Claude Code then shows its own prompt or dialog. Unibrow never allows
+anything by failing, so a fail-closed rule cannot turn a Unibrow failure into
+an unwanted approval. The worst case is the opposite: something gets refused.
+
+**What the change most likely covers.** The surrounding 2.1.299 entries are
+about the plugin hooks worker (JavaScript mods, `next()`, `.catch`). Unibrow
+uses plain command hooks from `hooks.json`, whose contract in the hooks
+reference is unchanged. If the rule also reaches command hooks, these are the
+paths that could change from "ask in the terminal" to "refused":
+
+- **Stdin not read** (fixed). Without the app, the shim used to exit for
+  every event but `SessionStart` without reading stdin; a failed write
+  (EPIPE) could count as "could not hand the hook its input" and refuse a
+  permission request or elicitation. The shim now reads its input to the end
+  (`cat >/dev/null`) on every path that does not exec the relay, and the
+  relay always did. `scripts/test-shim.sh` (run in CI) pipes 4 MB into the
+  shim without the app for each event and fails if the writer gets SIGPIPE
+  or the shim prints anything.
+- **Timeout.** A timed-out hook "cannot hand back its answer": the request
+  might be denied or declined instead of falling back to the terminal. An
+  elicitation's relay now ends on its own at 110 s, before the 120 s hook
+  timeout. A permission request still waits until Claude Code's one-hour
+  timeout if nobody answers; there the terminal prompt is visible the whole
+  time, so this needs an unanswered prompt for an hour.
+- **Crash or kill.** A relay killed by a signal, or a shim that cannot exec
+  the relay (exit 126/127), is a failed hook rather than "no output".
+- **Async hooks** (`PostToolUse`, `PostToolUseFailure`, `PermissionDenied`,
+  `Stop`, `StopFailure`, `Notification`, `UserPromptSubmit`, `SessionEnd`)
+  cannot block, so they should be unaffected. "A tool that already ran has
+  its result withheld" applies to blocking `PostToolUse` hooks; Unibrow's is
+  async. Worth confirming, because a withheld result would break sessions.
+
+**What to test before moving to 2.1.299 or later** (with `claude --debug`
+and the hook log):
+
+1. App quit, plugin enabled: a Bash permission prompt and an MCP elicitation
+   still show the normal terminal prompt and dialog (not a denial), with and
+   without the relay link present.
+2. App paused: same.
+3. A request answered in the terminal while its card waits (the hook is
+   cancelled): the tool runs as answered; no extra denial.
+4. Kill the waiting relay (`pkill -f unibrow-hook`): what Claude Code does
+   now (prompt, or deny).
+5. A short hook timeout (edit `timeout` in a local copy of `hooks.json`):
+   prompt or deny/decline after the timeout.
+6. Tools still return their results with the async `PostToolUse` hooks on,
+   including large outputs.
+7. Allow, Always, Deny, question answers and elicitation Submit/Decline/
+   Cancel/Open from the notch still reach Claude Code.
+
+If 1 or 2 still end in a refusal, the stdin drain was not the cause: check
+the debug log for what Claude Code reports. If 4 or 5 do, the terminal
+fallback no longer covers a crashed or timed-out relay: say so in the docs (a
+missing answer refuses), and consider giving the permission relay a deadline
+just below its timeout, as the elicitation relay has.
 
 ## Finding the session's window
 

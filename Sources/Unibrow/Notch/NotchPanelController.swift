@@ -120,7 +120,7 @@ final class NotchPanelController {
         if isInside {
             collapseTask?.cancel()
             collapseTask = nil
-            if !(model.queue.isEmpty && model.finished.isEmpty), !state.isExpanded {
+            if model.hasContent, !state.isExpanded {
                 state.isExpanded = true
             }
         } else if state.isExpanded, collapseTask == nil, !panel.isKeyWindow {
