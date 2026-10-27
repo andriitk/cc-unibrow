@@ -132,6 +132,7 @@ h1 .accent { color: var(--brand); }
     linear-gradient(180deg, #0c0c18, #151432);
   box-shadow: 0 50px 120px -30px rgba(0,0,0,.9), 0 0 0 10px #0d0d0f, 0 0 0 11px #26262a;
   transform: rotateX(8deg); transform-origin: 50% 0;
+  container-type: inline-size;
   transition: transform 1s var(--ease-out);
 }
 .stage.in { transform: rotateX(0); }
@@ -157,60 +158,201 @@ h1 .accent { color: var(--brand); }
 .w2 { right: 4%; top: 20%; width: 38%; height: 40%; }
 .w3 { left: 24%; top: 52%; width: 44%; height: 40%; }
 
+/* The island: grows out of the notch. Sizes follow the stage, not the page. */
 .island {
-  --w: 460px; --cw: 210px; --ch: 32px;
+  --w: min(468px, 94cqw); --cw: min(210px, 40cqw); --ch: 32px;
   position: absolute; top: 0; left: 50%; width: var(--w); translate: -50% 0; z-index: 5;
-  background: #000; border-radius: 0 0 26px 26px;
+  max-height: calc(100% - 14px); display: flex; flex-direction: column;
+  background: #000; border-radius: 0 0 26px 26px; text-align: left;
   clip-path: inset(0 calc((var(--w) - var(--cw)) / 2) calc(100% - var(--ch)) calc((var(--w) - var(--cw)) / 2) round 0 0 14px 14px);
   transition: clip-path .55s var(--ease-out);
   box-shadow: 0 30px 60px rgba(0,0,0,.6);
-  cursor: default;
 }
 .island.open { clip-path: inset(0 0 0 0 round 0 0 26px 26px); transition-timing-function: var(--ease-spring); }
 .wings {
-  position: relative; height: var(--ch); display: flex; align-items: center; justify-content: space-between;
-  padding-inline: calc((var(--w) - var(--cw)) / 2 + 12px);
-  transition: padding .55s var(--ease-out);
+  position: relative; flex: none; width: 100%; height: var(--ch); display: flex; align-items: center; justify-content: space-between;
+  padding: 0 calc((var(--w) - var(--cw)) / 2 + 12px); border: 0; background: none; color: var(--text); font: inherit; cursor: pointer;
+  border-radius: 0; transition: padding .55s var(--ease-out);
 }
+.wings:focus-visible { outline-offset: -3px; }
 .island.open .wings { padding-inline: 18px; }
 .wing-l { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
-.wing-l .label { opacity: 0; transition: opacity .3s; white-space: nowrap; }
+.wing-l .label { opacity: 0; transition: opacity .3s; white-space: nowrap; color: rgba(255,255,255,.85); }
 .island.open .wing-l .label { opacity: 1; transition-delay: .15s; }
-.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 0 var(--brand-glow); }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 0 var(--brand-glow); transition: opacity .25s; }
 .island[data-state="ask"] .dot { animation: pulse 1.6s infinite; }
 .done { width: 13px; height: 13px; color: var(--ok); display: none; }
-.island[data-state="done"] .dot { display: none; }
+.island[data-state="done"] .dot, .island[data-state="idle"] .dot { display: none; }
 .island[data-state="done"] .done { display: block; }
 .count {
-  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--brand); color: #000;
-  font: 700 11px/18px var(--sans); text-align: center; transition: opacity .25s, transform .3s var(--ease-spring);
+  min-width: 20px; height: 18px; padding: 0 6px; border-radius: 999px; background: var(--brand); color: #000;
+  font: 700 11px/18px var(--sans); font-variant-numeric: tabular-nums; text-align: center;
+  transition: opacity .25s, transform .3s var(--ease-spring);
 }
-.island[data-state="done"] .count { opacity: 0; transform: scale(.5); }
-.panel { padding: 4px 12px 14px; opacity: 0; transform: translateY(-6px); transition: opacity .25s, transform .35s var(--ease-out); }
+.count.bump { animation: bump .45s var(--ease-spring); }
+.island:not([data-state="ask"]) .count { opacity: 0; transform: scale(.5); }
+.panel {
+  min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.2) transparent;
+  padding: 4px 12px 14px; opacity: 0; transform: translateY(-6px); transition: opacity .25s, transform .35s var(--ease-out);
+}
+.panel.over { -webkit-mask-image: linear-gradient(#000 calc(100% - 26px), transparent); mask-image: linear-gradient(#000 calc(100% - 26px), transparent); }
 .island.open .panel { opacity: 1; transform: none; transition-delay: .12s; }
-.proj { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: rgba(255,255,255,.55); padding: 4px 6px 8px; }
-.proj .icon { width: 11px; height: 11px; }
-.req { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.06); border-radius: 14px; padding: 12px; text-align: left; }
-.req-h { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.panel > div:empty { display: none; }
+.panel > div:not(:empty) ~ div:not(:empty) { margin-top: 14px; }
+#fin:not(:empty) { animation: rise .35s var(--ease-out); }
+.empty-note { font-size: 11px; color: rgba(255,255,255,.5); padding: 8px 6px 2px; }
+.group + .group { margin-top: 14px; }
+.proj { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: rgba(255,255,255,.55); padding: 4px 4px 8px; }
+.proj .icon { width: 11px; height: 11px; fill: currentColor; stroke: none; }
+.proj .n { font-size: 10px; color: rgba(255,255,255,.45); font-variant-numeric: tabular-nums; }
+
+/* One card per request; collapses in and out without moving the page. */
+.slot { position: relative; display: grid; grid-template-rows: 1fr; transition: grid-template-rows .4s var(--ease-out), opacity .3s; }
+.slot + .slot { margin-top: 8px; }
+.slot > .inner { min-height: 0; }
+.slot.enter, .slot.leave { grid-template-rows: 0fr; opacity: 0; }
+.slot.enter > .inner, .slot.leave > .inner { overflow: hidden; }
+.slot.leave { transition-duration: .28s, .2s; }
+.slot.resolved > .inner { opacity: .35; transition: opacity .2s; }
+.confirm {
+  position: absolute; right: 12px; bottom: 10px; display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #0d0d0f;
+  animation: rise .3s var(--ease-out);
+}
+.confirm .icon { width: 13px; height: 13px; }
+.confirm.ok { color: #6fd67a; box-shadow: inset 0 0 0 1px rgba(111,214,122,.45); }
+.confirm.no { color: var(--deny); box-shadow: inset 0 0 0 1px rgba(248,113,113,.45); }
+.confirm.neutral { color: rgba(255,255,255,.8); box-shadow: inset 0 0 0 1px rgba(255,255,255,.2); }
+
+.req { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.06); border-radius: 14px; padding: 12px; text-align: left; display: grid; gap: 8px; }
+.req-h { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 12px; }
 .req-h .ti { color: var(--brand); width: 14px; height: 14px; }
-.req-h b { font-weight: 650; }
-.chip { display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px; border-radius: 999px; background: rgba(255,255,255,.08); color: rgba(255,255,255,.55); font-size: 10px; font-weight: 500; white-space: nowrap; }
+.req-h b { font-weight: 650; color: rgba(255,255,255,.9); }
+.req-h .sp, .acts .sp { flex: 1 0 4px; }
+.chip { display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px; border-radius: 999px; background: rgba(255,255,255,.08); color: rgba(255,255,255,.6); font-size: 10px; font-weight: 500; white-space: nowrap; }
 .chip .icon { width: 9px; height: 9px; }
-.req-h .app { margin-left: auto; color: rgba(255,255,255,.55); font-size: 11px; display: inline-flex; gap: 2px; align-items: center; }
-.req-h .age { color: rgba(255,255,255,.4); font-size: 10px; margin-left: 6px; }
-.req-body { margin: 10px 0 4px; font: 12.5px/1.45 var(--mono); color: #fff; word-break: break-word; }
-.req-sub { font-size: 11px; color: rgba(255,255,255,.5); }
-.opts { display: grid; gap: 5px; margin-top: 8px; }
-.opt { display: flex; align-items: center; gap: 8px; padding: 6px 9px; border-radius: 9px; background: rgba(255,255,255,.05); font-size: 12px; }
-.opt i { width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,.4); flex: none; }
-.opt.sel { background: rgba(74,222,128,.10); outline: 1px solid rgba(74,222,128,.6); }
-.opt.sel i { border-color: var(--ok); background: radial-gradient(circle, var(--ok) 0 40%, transparent 45%); }
-.acts { display: flex; justify-content: flex-end; gap: 6px; margin-top: 10px; }
-.a { padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; transition: transform .15s, box-shadow .2s, filter .2s; }
-.a-deny { background: rgba(248,113,113,.16); color: var(--deny); }
-.a-q { background: rgba(255,255,255,.1); color: #fff; }
-.a-ok { background: #6fd67a; color: #04210c; }
-.a.press { transform: scale(.92); box-shadow: 0 0 0 6px rgba(111,214,122,.25); filter: brightness(1.1); }
+.chip.warn { color: var(--brand); }
+.app {
+  position: relative; display: inline-flex; gap: 3px; align-items: center; padding: 3px 8px; border: 0; border-radius: 999px;
+  background: none; color: rgba(255,255,255,.6); font: 600 11px var(--sans); cursor: pointer; transition: color .15s, background .15s;
+}
+.app .icon { width: 10px; height: 10px; }
+.app:hover { color: rgba(255,255,255,.9); background: rgba(255,255,255,.06); }
+.age { color: rgba(255,255,255,.5); font-size: 10px; font-weight: 500; font-variant-numeric: tabular-nums; min-width: 2.4em; text-align: right; }
+.tipwrap { position: relative; display: inline-flex; }
+.island .req-h .sp { display: none; }
+.island .req-h .tipwrap { margin-left: auto; }
+.tip {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 3; white-space: nowrap; pointer-events: none;
+  padding: 5px 9px; border-radius: 8px; background: #f5f5f7; color: #000; font: 600 11px/1.2 var(--sans);
+  box-shadow: 0 8px 24px rgba(0,0,0,.5); animation: rise .2s var(--ease-out);
+}
+.tip::before { content: ""; position: absolute; top: -4px; right: 14px; width: 8px; height: 8px; background: inherit; transform: rotate(45deg); }
+.req-body { font: 12.5px/1.45 var(--mono); color: #fff; word-break: break-word; white-space: pre-wrap; }
+.req-body.clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.req-sub { font-size: 11px; color: rgba(255,255,255,.6); }
+.esc { color: var(--brand); background: rgba(248,154,34,.16); border-radius: 4px; padding: 0 2px; }
+.notes { display: flex; flex-wrap: wrap; gap: 4px; }
+.detail {
+  max-height: 150px; overflow: auto; padding: 8px; border-radius: 8px; background: rgba(0,0,0,.45);
+  font: 11px/1.5 var(--mono); color: rgba(255,255,255,.85); white-space: pre; scrollbar-width: thin;
+}
+.detail[hidden] { display: none; }
+.detail .k { color: #9ecbff; }
+.detail .rm, .detail .add { display: block; padding: 0 4px; margin: 0 -4px; }
+.detail .rm { color: #ff8a80; background: rgba(248,113,113,.12); }
+.detail .add { color: #7ee2a0; background: rgba(74,222,128,.12); }
+.q { font-size: 12px; font-weight: 500; color: #fff; }
+.hr { height: 1px; background: rgba(255,255,255,.08); }
+
+.opts { display: grid; gap: 4px; }
+.opt {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border: 0; border-radius: 8px;
+  background: rgba(255,255,255,.03); color: #fff; font: 600 12px/1.3 var(--sans); text-align: left; cursor: pointer; transition: background .15s;
+}
+.opt:hover { background: rgba(255,255,255,.07); }
+.opt[hidden] { display: none; }
+.opt small { display: block; font-weight: 400; font-size: 11px; color: rgba(255,255,255,.55); }
+.opt i { width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,.45); flex: none; }
+.opt.sel, .opt[aria-pressed="true"] { background: rgba(255,255,255,.12); }
+.opt.sel i, .opt[aria-pressed="true"] i, .other i { border-color: var(--brand); background: radial-gradient(circle, var(--brand) 0 40%, transparent 45%); }
+.other { display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 8px; border-radius: 8px; background: rgba(255,255,255,.12); }
+.other[hidden] { display: none; }
+.other i { width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid; flex: none; }
+.field-in, .other input {
+  width: 100%; min-width: 0; padding: 6px 8px; border: 0; border-radius: 8px; background: rgba(255,255,255,.08);
+  color: #fff; font: 12px/1.3 var(--sans); outline: none; transition: background .15s;
+}
+.other input { background: none; padding: 3px 0; }
+.field-in:focus { background: rgba(255,255,255,.14); box-shadow: 0 0 0 1px var(--brand); }
+.field-in::placeholder, .other input::placeholder { color: rgba(255,255,255,.45); }
+.field-in[aria-invalid="true"] { box-shadow: 0 0 0 1px #ff8073; }
+.fld { display: grid; gap: 4px; }
+.fl { font-size: 11px; font-weight: 600; color: rgba(255,255,255,.8); }
+.fl .star { color: var(--brand); font-weight: 700; }
+.fdesc { font-size: 10.5px; color: rgba(255,255,255,.5); }
+.ferr { font-size: 10.5px; font-weight: 500; color: #ff8073; min-height: 0; }
+.ferr:empty { display: none; }
+.swrow { display: flex; align-items: center; gap: 8px; font-size: 11px; color: rgba(255,255,255,.75); }
+.sw {
+  position: relative; width: 28px; height: 16px; border: 0; border-radius: 999px; padding: 0; cursor: pointer;
+  background: rgba(255,255,255,.2); transition: background .2s;
+}
+.sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; transition: transform .2s var(--ease-out); }
+.sw[aria-checked="true"] { background: #4cd964; }
+.sw[aria-checked="true"]::after { transform: translateX(12px); }
+.x {
+  display: grid; place-items: center; width: 22px; height: 22px; flex: none; border: 0; border-radius: 999px; padding: 0;
+  background: none; color: rgba(255,255,255,.55); cursor: pointer; transition: color .15s, background .15s;
+}
+.x:hover { color: #fff; background: rgba(255,255,255,.08); }
+.x .icon { width: 11px; height: 11px; stroke-width: 2.6; }
+
+/* Pill buttons, as in the app: Deny red, Always grey, Allow green. */
+.acts { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px; margin-top: 2px; }
+.a {
+  display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; border: 0; border-radius: 999px;
+  font: 600 12px/1.25 var(--sans); cursor: pointer; transition: transform .12s, box-shadow .2s, filter .15s, background .15s, color .15s;
+}
+.a .icon { width: 11px; height: 11px; transition: transform .25s var(--ease-out); }
+.a:hover { filter: brightness(1.12); }
+.a:active, .a.press { transform: scale(.95); }
+.a.press { box-shadow: 0 0 0 5px rgba(255,255,255,.12); }
+.a-deny { background: rgba(255,77,71,.18); color: #ff7570; }
+.a-q { background: rgba(255,255,255,.14); color: #fff; }
+.a-ok { background: #4dd973; color: #000; }
+.a-ok.press { box-shadow: 0 0 0 6px rgba(77,217,115,.25); }
+.a-quiet { background: none; color: rgba(255,255,255,.6); padding-inline: 8px; }
+.a-quiet:hover { color: rgba(255,255,255,.9); background: rgba(255,255,255,.06); filter: none; }
+.a[aria-expanded="true"] .icon { transform: rotate(180deg); }
+.a[aria-disabled="true"] { opacity: .4; cursor: default; filter: none; }
+
+/* Alerts (stopped sessions, background agents) and finished rows. */
+.alert, .fin-row { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 10px; }
+.alert { background: rgba(248,154,34,.1); --tint: var(--brand); }
+.alert.fail { background: rgba(255,90,82,.1); --tint: #ff6b63; }
+.alert > .icon { width: 14px; height: 14px; color: var(--tint); margin-top: 3px; }
+.al-main { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.al-hl { font-size: 12px; font-weight: 500; color: var(--tint); }
+.al-main .a { justify-self: start; }
+.fin-row { background: rgba(255,255,255,.03); }
+.fin-row > .done { display: block; width: 13px; height: 13px; margin-top: 3px; }
+.fin-h { display: flex; align-items: center; gap: 6px; padding: 0 4px 6px; font-size: 11px; font-weight: 600; color: rgba(74,222,128,.85); }
+.fin-h small { font-size: 10px; font-weight: 400; color: rgba(255,255,255,.4); }
+.fin-h .sp { flex: 1; }
+
+.stage-ctl { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 10px; margin-top: 28px; }
+.stage-ctl .btn { min-height: 40px; padding: 0 14px; font-size: 14px; }
+.stage-status { flex-basis: 100%; font-size: 13px; color: var(--text-3); min-height: 1.5em; }
+
+@keyframes bump { 0% { transform: scale(1); } 40% { transform: scale(1.3); } 100% { transform: scale(1); } }
+@keyframes rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (pointer: coarse) {
+  .island .a { padding: 8px 14px; }
+  .island .app { padding: 7px 10px; }
+  .island .x { width: 32px; height: 32px; }
+  .island .opt { padding: 9px 10px; }
+}
 
 @keyframes pulse {
   0% { box-shadow: 0 0 0 0 var(--brand-glow); }
@@ -270,11 +412,14 @@ h2 { margin: 12px 0 0; font-size: clamp(34px, 5vw, 56px); line-height: 1.06; let
 .fin .s { color: rgba(255,255,255,.55); margin-top: 2px; }
 
 /* Trust */
-.trust { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 56px; }
+.trust { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-top: 56px; }
+.trust > div { grid-column: span 2; }
+.trust > div:nth-child(n+4) { grid-column: span 3; }
 .trust div { padding: 26px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--bg-raised); }
 .trust .icon { width: 24px; height: 24px; color: var(--ok); }
 .trust h3 { margin: 16px 0 6px; font-size: 18px; font-weight: 650; letter-spacing: -.015em; }
 .trust p { margin: 0; color: var(--text-2); font-size: 15px; }
+.trust code { font: 13.5px var(--mono); color: var(--text); overflow-wrap: anywhere; }
 
 /* Steps */
 .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 56px; counter-reset: s; }
@@ -322,6 +467,8 @@ footer a:hover { color: var(--text); }
   .bento { grid-template-columns: 1fr 1fr; }
   .tile, .tile.wide, .tile.half { grid-column: span 2; }
   .trust { grid-template-columns: 1fr 1fr; }
+  .trust > div, .trust > div:nth-child(n+4) { grid-column: auto; }
+  .trust > div:last-child { grid-column: span 2; }
   .steps { grid-template-columns: 1fr; }
   .nav-links { display: none; }
   .nav .btn { margin-left: auto; }
@@ -330,16 +477,18 @@ footer a:hover { color: var(--text); }
   section { padding: 84px 0; }
   .hero { padding-top: 56px; }
   .trust { grid-template-columns: 1fr; }
-  .stage { aspect-ratio: 3 / 4; }
+  .trust > div:last-child { grid-column: auto; }
+  .stage { aspect-ratio: 3 / 4.4; }
+  .menubar .l span { display: none; }
   .win { display: none; }
   .w1 { display: block; left: 6%; top: 52%; width: 88%; height: 40%; }
-  .island { --w: min(92%, 420px); --cw: 150px; }
   .tile { padding: 22px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
   .reveal { opacity: 1; transform: none; }
   .stage { transform: none; }
+  .island, .island.open { transition: none; }
 }
 </style>
 </head>
@@ -361,6 +510,19 @@ footer a:hover { color: var(--text); }
   <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
   <symbol id="i-play" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></symbol>
   <symbol id="i-github" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.82-.26.82-.57v-2.03c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.74.08-.73.08-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22v3.29c0 .32.21.69.82.57A12 12 0 0 0 12 .3"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+  <symbol id="i-shield-alert" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 8v4"/><path d="M12 16h.01"/></symbol>
+  <symbol id="i-lines" viewBox="0 0 24 24"><path d="M15 12H3"/><path d="M17 18H3"/><path d="M21 6H3"/></symbol>
+  <symbol id="i-type" viewBox="0 0 24 24"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" x2="15" y1="20" y2="20"/><line x1="12" x2="12" y1="4" y2="20"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-form" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 8h10"/><path d="M7 12h10"/><path d="M7 16h6"/></symbol>
+  <symbol id="i-octagon" viewBox="0 0 24 24"><path d="M12 16h.01"/><path d="M12 8v4"/><path d="M15.312 2a2 2 0 0 1 1.414.586l4.688 4.688A2 2 0 0 1 22 8.688v6.624a2 2 0 0 1-.586 1.414l-4.688 4.688a2 2 0 0 1-1.414.586H8.688a2 2 0 0 1-1.414-.586l-4.688-4.688A2 2 0 0 1 2 15.312V8.688a2 2 0 0 1 .586-1.414l4.688-4.688A2 2 0 0 1 8.688 2z"/></symbol>
+  <symbol id="i-user-q" viewBox="0 0 24 24"><circle cx="10" cy="8" r="4"/><path d="M2 21v-1a6 6 0 0 1 9-5.2"/><path d="M15.5 15.5a2.5 2.5 0 1 1 3.3 2.4c-.5.2-.8.6-.8 1.1v.5"/><path d="M18 22h.01"/></symbol>
+  <symbol id="i-replay" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></symbol>
 </svg>
 
 <header class="nav">
@@ -390,7 +552,7 @@ footer a:hover { color: var(--text); }
 
     <div class="stage-wrap">
       <div class="stage" id="stage">
-        <p class="sr">Animated illustration: a Claude Code permission request appears in the MacBook notch and is approved with one click.</p>
+        <p class="sr">Interactive illustration of the Unibrow notch. Requests from Claude Code appear one after another and play on their own; every button works. Hover or focus the notch to pause, or use the Pause button below.</p>
         <div class="menubar" aria-hidden="true">
           <div class="l"><b>Terminal</b><span>Shell</span><span>Edit</span><span>View</span><span>Window</span></div>
           <div class="r">
@@ -408,18 +570,29 @@ footer a:hover { color: var(--text); }
           <div>&gt; plan how to speed up the evaluator</div><div class="hl">● Plan ready</div><div>  Waiting for approval</div>
         </div>
 
-        <div class="island" id="island" data-state="ask" aria-hidden="true">
-          <div class="wings">
-            <div class="wing-l">
-              <span class="dot"></span>
-              <svg class="icon done"><use href="#i-check-circle"/></svg>
+        <div class="island" id="island" data-state="idle" role="region" aria-label="Unibrow notch demo">
+          <button class="wings" id="wings" type="button" aria-expanded="false" aria-controls="panel" aria-label="Claude Code, nothing waiting">
+            <span class="wing-l">
+              <span class="dot" aria-hidden="true"></span>
+              <svg class="icon done" aria-hidden="true"><use href="#i-check-circle"/></svg>
               <span class="label">Claude Code</span>
-            </div>
-            <span class="count" id="count">1</span>
+            </span>
+            <span class="count" id="count" aria-hidden="true">0</span>
+          </button>
+          <div class="panel" id="panel" inert>
+            <div id="reqs"></div>
+            <div id="alerts"></div>
+            <div id="fin"></div>
+            <p class="empty-note" id="empty" hidden>Nothing waiting.</p>
           </div>
-          <div class="panel" id="panel"></div>
         </div>
       </div>
+      <div class="stage-ctl">
+        <button class="btn btn-ghost" id="demo-pause" type="button"><svg class="icon" aria-hidden="true"><use href="#i-pause"/></svg><span>Pause</span></button>
+        <button class="btn btn-ghost" id="demo-replay" type="button"><svg class="icon" aria-hidden="true"><use href="#i-replay"/></svg>Replay</button>
+        <p class="stage-status" id="demo-status">Every button in the notch works. Hover or focus it to pause.</p>
+      </div>
+      <p class="sr" id="demo-live" aria-live="polite"></p>
     </div>
   </div>
 </div>
@@ -456,15 +629,16 @@ footer a:hover { color: var(--text); }
       <article class="tile wide reveal">
         <div class="ti-badge"><svg class="icon"><use href="#i-terminal"/></svg></div>
         <h3>Permission requests</h3>
-        <p>The exact command, or a diff of the edit. Allow once, Always, or Deny. <em>Details</em> shows the full input, never shortened.</p>
+        <p>The exact command, or a diff of the edit. Allow once, Always, or Deny. Long or multi-line input and extra fields are flagged, and <em>Show full …</em> opens all of it.</p>
         <div class="mock">
           <div class="req">
             <div class="req-h"><svg class="icon ti"><use href="#i-terminal"/></svg><b>Bash</b>
-              <span class="chip"><svg class="icon"><use href="#i-branch"/></svg>main</span><span class="chip">a3f1</span>
-              <span class="app">Terminal <svg class="icon" style="width:10px;height:10px"><use href="#i-arrow"/></svg></span><span class="age">12s</span></div>
+              <span class="chip"><svg class="icon"><use href="#i-branch"/></svg>main</span><span class="chip"><svg class="icon"><use href="#i-terminal"/></svg>a3f1</span>
+              <span class="sp"></span><span class="app">Terminal <svg class="icon"><use href="#i-arrow"/></svg></span><span class="age">12s</span></div>
             <div class="req-body">npm run db:migrate -- --env staging</div>
             <div class="req-sub">Apply the invoice VAT migration on staging</div>
-            <div class="acts"><span class="a a-deny">Deny</span><span class="a a-q">Always</span><span class="a a-ok">Allow</span></div>
+            <div class="notes"><span class="chip">1 more field</span></div>
+            <div class="acts"><span class="a a-q">Show full input <svg class="icon"><use href="#i-chevron"/></svg></span><span class="sp"></span><span class="a a-deny">Deny</span><span class="a a-q">Always</span><span class="a a-ok">Allow</span></div>
           </div>
         </div>
       </article>
@@ -477,7 +651,7 @@ footer a:hover { color: var(--text); }
           <div class="opts">
             <div class="opt"><i></i>Recharts</div>
             <div class="opt sel"><i></i>visx</div>
-            <div class="opt"><i></i>Other…</div>
+            <div class="opt"><i></i><span>Other…<small>Type your own answer</small></span></div>
           </div>
         </div>
       </article>
@@ -486,7 +660,7 @@ footer a:hover { color: var(--text); }
         <div class="ti-badge"><svg class="icon"><use href="#i-plan"/></svg></div>
         <h3>Plans</h3>
         <p>A plan from plan mode is ready. Approve to start, or Keep Planning to ask for changes.</p>
-        <div class="acts" style="justify-content:flex-start;margin-top:22px"><span class="a a-q">Keep Planning</span><span class="a a-ok">Approve</span></div>
+        <div class="acts" style="justify-content:flex-start;margin-top:22px"><span class="a a-deny">Keep Planning</span><span class="a a-ok">Approve</span></div>
       </article>
 
       <article class="tile reveal">
@@ -503,6 +677,26 @@ footer a:hover { color: var(--text); }
         <div class="ti-badge"><svg class="icon"><use href="#i-arrow"/></svg></div>
         <h3>Jump to the session</h3>
         <p>Click <b>Cursor ↗</b>, <b>Terminal ↗</b> or <b>PyCharm ↗</b> to land in the right window, even with ten open.</p>
+      </article>
+
+      <article class="tile reveal">
+        <div class="ti-badge"><svg class="icon"><use href="#i-form"/></svg></div>
+        <h3>MCP forms</h3>
+        <p>When an MCP server asks for input, fill in its form right there: text, choices, yes or no. Submit, Decline or Cancel. Links show the full URL with the real host highlighted.</p>
+      </article>
+
+      <article class="tile reveal">
+        <div class="ti-badge" style="background:rgba(255,90,82,.12);color:#ff6b63"><svg class="icon"><use href="#i-octagon"/></svg></div>
+        <h3>Session stopped</h3>
+        <p>A turn that ends on an API error shows up in red: rate limit, authentication, billing and more, with a hint for what to do next.</p>
+        <div class="alert fail" style="margin-top:22px"><svg class="icon"><use href="#i-octagon"/></svg>
+          <div class="al-main"><div class="al-hl">Session stopped: Rate limit reached</div><div class="req-sub">Wait for the limit to reset, then continue.</div></div></div>
+      </article>
+
+      <article class="tile reveal">
+        <div class="ti-badge"><svg class="icon"><use href="#i-user-q"/></svg></div>
+        <h3>Background agents</h3>
+        <p>When a background agent is waiting for your input, a row says so. Click it to open that session.</p>
       </article>
 
       <article class="tile half reveal">
@@ -531,6 +725,7 @@ footer a:hover { color: var(--text); }
     </div>
     <div class="trust">
       <div class="reveal"><svg class="icon"><use href="#i-user-check"/></svg><h3>No auto-approve</h3><p>There is no mode that approves on its own. Every Allow is your click.</p></div>
+      <div class="reveal"><svg class="icon"><use href="#i-eye"/></svg><h3>Nothing hidden</h3><p>Long or multi-line commands are flagged, invisible and control characters are shown escaped, and fields like <code>dangerouslyDisableSandbox</code> are highlighted.</p></div>
       <div class="reveal"><svg class="icon"><use href="#i-terminal"/></svg><h3>The terminal still works</h3><p>Answer in either place. Quit or pause Unibrow and Claude Code asks in the terminal as always.</p></div>
       <div class="reveal"><svg class="icon"><use href="#i-lock"/></svg><h3>Nothing leaves your Mac</h3><p>No network code, no analytics, no account. A private local socket only your user can open.</p></div>
       <div class="reveal"><svg class="icon"><use href="#i-shield"/></svg><h3>Verified install</h3><p>The app comes from this project’s GitHub Releases, checked by SHA-256 and code signature.</p></div>
@@ -607,7 +802,6 @@ footer a:hover { color: var(--text); }
 <script>
 (() => {
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const svg = id => `<svg class="icon"><use href="#${id}"/></svg>`;
 
   // Copy buttons
   document.querySelectorAll('[data-copy]').forEach(btn => {
@@ -638,53 +832,428 @@ footer a:hover { color: var(--text); }
     }, { threshold: .5 }).observe(video);
   }
 
-  // Notch demo
-  const island = document.getElementById('island');
-  const panel = document.getElementById('panel');
-  const count = document.getElementById('count');
-  const head = (icon, title, branch, tag, app, age) =>
-    `<div class="req-h">${svg(icon).replace('class="icon"', 'class="icon ti"')}<b>${title}</b>
-      <span class="chip">${svg('i-branch')}${branch}</span><span class="chip">${tag}</span>
-      <span class="app">${app} ${svg('i-arrow')}</span><span class="age">${age}</span></div>`;
-  const scenes = [
-    { project: 'payments-api', ok: 'Allow', html:
-      head('i-terminal', 'Bash', 'main', 'a3f1', 'Terminal', '12s') +
-      `<div class="req-body">npm run db:migrate -- --env staging</div>
-       <div class="req-sub">Apply the invoice VAT migration on staging</div>
-       <div class="acts"><span class="a a-deny">Deny</span><span class="a a-q">Always</span><span class="a a-ok">Allow</span></div>` },
-    { project: 'aurora-web', ok: 'Submit', html:
-      head('i-question', 'Claude asks', 'feature/charts', 'e91b', 'Ghostty', '4s') +
-      `<div class="req-body" style="font-family:var(--sans);font-weight:600">Which chart library should the dashboard use?</div>
-       <div class="opts"><div class="opt"><i></i>Recharts</div><div class="opt sel"><i></i>visx</div></div>
-       <div class="acts"><span class="a a-ok">Submit</span></div>` },
-    { project: 'ml-pipeline', ok: 'Approve', html:
-      head('i-plan', 'Plan', 'perf/eval', 'b40d', 'Cursor', '1m') +
-      `<div class="req-sub" style="color:rgba(255,255,255,.75);margin-top:10px">Speed up the evaluator: cache embeddings, batch requests in groups of 32, add a retry budget.</div>
-       <div class="acts"><span class="a a-q">Keep Planning</span><span class="a a-ok">Approve</span></div>` },
-  ];
-  const render = s => {
-    panel.innerHTML = `<div class="proj">${svg('i-folder')}${s.project}</div><div class="req">${s.html}</div>`;
+  // ---------- Notch demo ----------
+  // A scripted queue of real request types. It plays by itself while idle,
+  // pauses on hover, keyboard focus or touch, and every button works.
+  // To adjust: edit `scenes` (what arrives, in order) and each item's `auto`
+  // (what autoplay clicks, in ms after the card becomes first in line).
+  const $ = s => document.querySelector(s);
+  const stage = $('#stage'), island = $('#island'), wings = $('#wings'), panel = $('#panel');
+  const countEl = $('#count'), reqsEl = $('#reqs'), alertsEl = $('#alerts'), finEl = $('#fin'), emptyEl = $('#empty');
+  const live = $('#demo-live'), statusEl = $('#demo-status'), pauseBtn = $('#demo-pause'), replayBtn = $('#demo-replay');
+
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const ic = (id, cls = '') => `<svg class="icon ${cls}" aria-hidden="true"><use href="#${id}"/></svg>`;
+  // Invisible and bidi characters are shown escaped, as the app does: \u{200B}.
+  const vis = s => esc(s).replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF]/g,
+    c => `<span class="esc">\\u{${c.codePointAt(0).toString(16).toUpperCase()}}</span>`);
+  const chip = (text, icon, warn) => `<span class="chip${warn ? ' warn' : ''}">${icon ? ic(icon) : ''}${esc(text)}</span>`;
+  const appBtn = app => `<span class="tipwrap"><button type="button" class="app" data-act="jump">${esc(app)} ${ic('i-arrow')}</button></span>`;
+  const head = it => `<div class="req-h">${ic(it.icon, 'ti')}<b>${esc(it.title)}</b>
+    ${it.branch ? chip(it.branch, 'i-branch') : ''}${it.agent ? chip(it.agent, 'i-users') : ''}${chip(it.session, 'i-terminal')}
+    <span class="sp"></span>${appBtn(it.app)}<span class="age" data-age></span></div>`;
+  const json = obj => esc(JSON.stringify(obj, null, 2)).replace(/^( *)(&quot;[^&]+&quot;):/gm, '$1<span class="k">$2</span>:');
+  const diff = (rm, add) => rm.map(l => `<span class="rm">− ${esc(l)}</span>`).join('') + add.map(l => `<span class="add">+ ${esc(l)}</span>`).join('');
+
+  // ----- Card templates (mirror RequestCard, QuestionCard, ElicitationCard, AlertSection, FinishedSection)
+  const tpl = {
+    perm: it => `<div class="req">${head(it)}
+      <div class="req-body clamp">${it.headline}</div>
+      ${it.caption ? `<div class="req-sub">${esc(it.caption)}</div>` : ''}
+      ${it.notes ? `<div class="notes">${it.notes.map(n => chip(...n)).join('')}</div>` : ''}
+      <div class="detail" id="d-${it.id}" hidden tabindex="0" aria-label="Full ${it.noun}">${it.detail}</div>
+      <div class="acts">
+        <button type="button" class="a a-q" data-act="more" aria-expanded="false" aria-controls="d-${it.id}"><span>Show full ${it.noun}</span>${ic('i-chevron')}</button>
+        <span class="sp"></span>
+        <button type="button" class="a a-deny" data-act="deny">${it.plan ? 'Keep Planning' : 'Deny'}</button>
+        ${it.always ? '<button type="button" class="a a-q" data-act="always">Always</button>' : ''}
+        <button type="button" class="a a-ok" data-act="allow">${it.plan ? 'Approve' : 'Allow'}</button>
+      </div></div>`,
+
+    question: it => `<div class="req">${head({ ...it, icon: 'i-question', title: 'Claude asks' })}
+      <div>${chip(it.header)}</div>
+      <div class="q" id="q-${it.id}">${esc(it.question)}</div>
+      <div class="opts" role="group" aria-labelledby="q-${it.id}">
+        ${it.options.map((o, i) => `<button type="button" class="opt" aria-pressed="false" data-act="opt" data-i="${i}"><i></i><span>${esc(o[0])}<small>${esc(o[1])}</small></span></button>`).join('')}
+        <button type="button" class="opt" data-act="other"><i></i><span>Other…<small>Type your own answer</small></span></button>
+        <div class="other" hidden><i></i><input type="text" aria-label="Your answer" placeholder="Your answer" autocomplete="off"><button type="button" class="x" data-act="other-x" aria-label="Cancel your own answer">${ic('i-x')}</button></div>
+      </div>
+      <div class="hr"></div>
+      <div class="acts"><button type="button" class="a a-quiet" data-act="term">${ic('i-arrow')}Answer in ${esc(it.app)}</button><span class="sp"></span>
+        <button type="button" class="a a-ok" data-act="submit" aria-disabled="true">Submit</button></div></div>`,
+
+    form: it => `<div class="req">${head({ ...it, icon: 'i-form', title: it.server })}
+      <div class="q">${esc(it.message)}</div>
+      <div class="fld"><label class="fl" for="f-${it.id}-t">Title <span class="star" aria-hidden="true">*</span></label>
+        <input class="field-in" id="f-${it.id}-t" type="text" placeholder="Required" aria-required="true" aria-describedby="f-${it.id}-e" autocomplete="off">
+        <div class="ferr" id="f-${it.id}-e"></div></div>
+      <div class="fld"><div class="fl" id="f-${it.id}-p">Priority <span class="star" aria-hidden="true">*</span></div>
+        <div class="opts" role="group" aria-labelledby="f-${it.id}-p">
+          ${['Low', 'Medium', 'High'].map(v => `<button type="button" class="opt" data-act="pick" aria-pressed="${v === 'Medium'}"><i></i><span>${v}</span></button>`).join('')}
+        </div></div>
+      <div class="fld"><div class="fl" id="f-${it.id}-n">Notify the on-call team</div>
+        <div class="swrow"><button type="button" class="sw" role="switch" aria-checked="false" aria-labelledby="f-${it.id}-n" data-act="switch"></button><span aria-hidden="true">Yes</span></div>
+        <div class="fdesc">Posts in the team channel</div></div>
+      <div class="hr"></div>
+      <div class="acts"><button type="button" class="a a-quiet" data-act="term">${ic('i-arrow')}Answer in ${esc(it.app)}</button><span class="sp"></span>
+        <button type="button" class="a a-quiet" data-act="cancel">Cancel</button>
+        <button type="button" class="a a-deny" data-act="decline">Decline</button>
+        <button type="button" class="a a-ok" data-act="submit">Submit</button></div></div>`,
+
+    alert: it => `<div class="alert${it.fail ? ' fail' : ''}">${ic(it.fail ? 'i-octagon' : 'i-user-q')}
+      <div class="al-main"><div class="req-h"><b>${esc(it.project)}</b>${chip(it.branch, 'i-branch')}${chip(it.session, 'i-terminal')}<span class="sp"></span>${appBtn(it.app)}<span class="age" data-age></span></div>
+        <div class="al-hl">${esc(it.headline)}</div>
+        <div class="req-sub">${esc(it.subtitle)}</div>
+        ${it.details ? `<button type="button" class="a a-quiet" data-act="more" aria-expanded="false" aria-controls="d-${it.id}"><span>Details</span>${ic('i-chevron')}</button>
+        <div class="detail" id="d-${it.id}" hidden tabindex="0" aria-label="Error details">${esc(it.details)}</div>` : ''}
+      </div><button type="button" class="x" data-act="dismiss" aria-label="Dismiss">${ic('i-x')}</button></div>`,
   };
 
-  if (reduce) { render(scenes[0]); island.classList.add('open'); return; }
+  // ----- The script
+  const bashCmd = 'npm run db:migrate -- --env staging && \\\n  npm run db:seed -- --only vat_rates && \\\n  npm test -- invoices && \\\n  git status --short';
+  const sneaky = 'pip install reque\u200Bsts';
+  const plan = '# Speed up the evaluator\n1. Cache embeddings by document hash\n2. Batch model calls in groups of 32\n3. Add a retry budget for timeouts\n4. Compare run time on the 1k sample';
+  const q = (sel, s) => s.querySelector(sel);
+  const press = el => { if (!el) return; el.classList.add('press'); autoT.push(setTimeout(() => { el.classList.remove('press'); el.click(); }, 200)); };
+  const more = s => press(q('[data-act=more][aria-expanded=false]', s));
+  const act = name => s => press(q(`[data-act=${name}]`, s));
 
-  let i = 0, timers = [], hovering = false;
-  const at = (ms, fn) => timers.push(setTimeout(fn, ms));
-  const clear = () => { timers.forEach(clearTimeout); timers = []; };
-  const cycle = () => {
-    clear();
-    const s = scenes[i % scenes.length];
-    render(s);
-    island.dataset.state = 'done'; island.classList.remove('open');
-    at(900, () => { island.dataset.state = 'ask'; count.textContent = '1'; });
-    at(2200, () => island.classList.add('open'));
-    at(4600, () => panel.querySelector('.a-ok')?.classList.add('press'));
-    at(5100, () => { island.classList.remove('open'); island.dataset.state = 'done'; });
-    at(6800, () => { i++; cycle(); });
+  const items = {
+    bash: { kind: 'perm', id: 'bash', project: 'payments-api', icon: 'i-terminal', title: 'Bash', branch: 'main', session: 'a3f1', app: 'Terminal', age: 12,
+      headline: vis(bashCmd.split('\n')[0]), caption: 'Apply the VAT migration on staging, then run the tests',
+      notes: [['dangerouslyDisableSandbox', 'i-shield-alert', true], ['4 lines', 'i-lines']], noun: 'input', always: true,
+      detail: json({ command: bashCmd, dangerouslyDisableSandbox: true, description: 'Apply the VAT migration on staging, then run the tests' }),
+      done: { allow: 'Allowed once', always: 'Always allowed', deny: 'Denied' },
+      auto: [[1600, more], [4600, act('allow')]] },
+    edit: { kind: 'perm', id: 'edit', project: 'aurora-web', icon: 'i-pencil', title: 'Edit', branch: 'feature/charts', agent: 'ui-reviewer', session: 'e91b', app: 'Ghostty', age: 3,
+      headline: esc('src/charts/LineChart.tsx'), notes: [['2 lines', 'i-lines']], noun: 'change', always: true,
+      detail: diff(['const data = useMemo(() => rows, [rows]);'], ['const data = useMemo(() => rows.filter(r => r.vat != null), [rows]);']),
+      done: { allow: 'Allowed once', always: 'Always allowed', deny: 'Denied' },
+      auto: [[1400, more], [4000, act('always')]] },
+    question: { kind: 'question', id: 'ask', project: 'aurora-web', branch: 'feature/charts', session: 'e91b', app: 'Ghostty', age: 0,
+      header: 'Charts', question: 'Which chart library should the dashboard use?',
+      options: [['Recharts', 'Simple, widely used'], ['visx', 'Low-level, built on D3']],
+      auto: [[1400, s => press(q('[data-act=opt][data-i="1"][aria-pressed=false]', s))], [3400, act('submit')]] },
+    hidden: { kind: 'perm', id: 'hidden', project: 'ml-pipeline', icon: 'i-terminal', title: 'Bash', branch: 'perf/eval', session: 'b40d', app: 'Cursor', age: 0,
+      headline: vis(sneaky), caption: 'Install the HTTP client',
+      notes: [['non-ASCII characters', 'i-type', true], ['hidden characters shown escaped', 'i-alert', true]], noun: 'command', always: true,
+      detail: vis(sneaky), done: { allow: 'Allowed once', always: 'Always allowed', deny: 'Denied' },
+      auto: [[1500, more], [4600, act('deny')]] },
+    plan: { kind: 'perm', id: 'plan', plan: true, project: 'ml-pipeline', icon: 'i-plan', title: 'Plan', branch: 'perf/eval', session: 'b40d', app: 'Cursor', age: 0,
+      headline: esc(plan.split('\n')[0].replace('# ', '')), caption: 'Approve the plan and start coding',
+      notes: [['5 lines', 'i-lines']], noun: 'plan', detail: esc(plan),
+      done: { allow: 'Plan approved', deny: 'Back to planning' },
+      auto: [[1500, more], [4400, act('allow')]] },
+    form: { kind: 'form', id: 'mcp', project: 'payments-api', server: 'issue-tracker', branch: 'main', session: 'a3f1', app: 'Terminal', age: 0,
+      message: 'Open an issue for the failed staging migration?',
+      auto: [[1200, s => typeInto(q('input', s), 'VAT migration failed on staging')], [3000, s => press(q('[data-act=switch][aria-checked=false]', s))], [4600, act('submit')]] },
+    limit: { kind: 'alert', id: 'limit', fail: true, project: 'ml-pipeline', branch: 'perf/eval', session: 'c72e', app: 'iTerm2', age: 0,
+      headline: 'Session stopped: Rate limit reached', subtitle: 'Wait for the limit to reset, then continue.',
+      details: 'rate_limit_error\nThis request would exceed your rate limit.',
+      auto: [[1500, more], [4000, act('dismiss')]] },
+    agent: { kind: 'alert', id: 'agent', project: 'aurora-web', branch: 'feature/charts', session: '7d20', app: 'Ghostty', age: 0,
+      headline: 'Background agent needs input', subtitle: 'docs-writer · Which changelog section should this go under?',
+      auto: [[1300, act('jump')], [3600, act('dismiss')]] },
   };
-  island.addEventListener('mouseenter', () => { hovering = true; clear(); island.classList.add('open'); });
-  island.addEventListener('mouseleave', () => { hovering = false; cycle(); });
-  new IntersectionObserver(([e]) => { if (e.isIntersecting && !hovering) cycle(); else if (!e.isIntersecting) clear(); }).observe(island);
+  // Each scene arrives once the notch is clear; items in one scene queue up.
+  const scenes = [['bash', 'edit'], ['question'], ['hidden'], ['plan'], ['form', 'limit'], ['agent'], ['finished']];
+
+  // ----- State
+  let queue = [], finShown = false, sceneIx = -1, started = false;
+  let flowT = [], autoT = [];
+  let hovered = false, focused = false, userPaused = false, engagedUntil = 0, inView = false;
+  const later = (fn, ms) => flowT.push(setTimeout(fn, reduce ? Math.min(ms, 600) : ms));
+  const clearAuto = () => { autoT.forEach(clearTimeout); autoT = []; };
+  const paused = () => userPaused || hovered || focused || Date.now() < engagedUntil;
+  const canAuto = () => !reduce && inView && !document.hidden && !paused();
+  const say = t => { live.textContent = ''; setTimeout(() => { live.textContent = t; }, 30); };
+
+  function typeInto(input, text) {
+    if (!input || input.value) return;
+    [...text].forEach((ch, i) => autoT.push(setTimeout(() => {
+      input.value += ch; input.dispatchEvent(new Event('input', { bubbles: true }));
+    }, i * 30)));
+  }
+
+  function setOpen(v) {
+    island.classList.toggle('open', v);
+    wings.setAttribute('aria-expanded', String(v));
+    panel.inert = !v;
+    checkOverflow();
+  }
+  function checkOverflow() { requestAnimationFrame(() => panel.classList.toggle('over', panel.scrollHeight - panel.scrollTop > panel.clientHeight + 4)); }
+
+  function update() {
+    const n = queue.length;
+    const state = n ? 'ask' : finShown ? 'done' : 'idle';
+    if (countEl.textContent !== String(n) && n > Number(countEl.textContent)) {
+      countEl.classList.remove('bump'); void countEl.offsetWidth; countEl.classList.add('bump');
+    }
+    countEl.textContent = n;
+    island.dataset.state = state;
+    wings.setAttribute('aria-label', n ? `Claude Code, ${n} waiting` : finShown ? 'Claude Code, a session finished' : 'Claude Code, nothing waiting');
+    reqsEl.querySelectorAll('.group').forEach(g => {
+      const c = g.querySelectorAll('.slot').length;
+      g.querySelector('.n').textContent = c > 1 ? `(${c})` : '';
+    });
+    emptyEl.hidden = n > 0 || finShown;
+    checkOverflow();
+  }
+
+  function mount(el, host) {
+    if (!reduce) el.classList.add('enter');
+    host.appendChild(el);
+    if (!reduce) requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('enter')));
+  }
+
+  function arrive(key) {
+    if (key === 'finished') return showFinished();
+    const it = items[key];
+    const slot = document.createElement('div');
+    slot.className = 'slot';
+    slot.innerHTML = `<div class="inner">${tpl[it.kind](it)}</div>`;
+    slot._it = it;
+    slot.dataset.t0 = Date.now() - it.age * 1000;
+    if (it.kind === 'alert') mount(slot, alertsEl);
+    else {
+      let g = [...reqsEl.children].find(x => x.dataset.project === it.project);
+      if (!g) {
+        g = document.createElement('div');
+        g.className = 'group'; g.dataset.project = it.project;
+        g.innerHTML = `<div class="proj"><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg>${esc(it.project)} <span class="n"></span></div>`;
+        reqsEl.appendChild(g);
+      }
+      mount(slot, g);
+    }
+    queue.push(slot);
+    tick();
+    update();
+    if (!island.classList.contains('open')) later(() => setOpen(true), 700);
+    if (paused()) say(`New in the notch: ${it.kind === 'alert' ? it.headline : (it.title || it.server || 'Claude asks')} in ${it.project}`);
+    if (queue.length === 1) scheduleAuto();
+  }
+
+  function showFinished() {
+    finShown = true;
+    finEl.innerHTML = `<div class="fin-h"><span>Finished</span><small>nothing to do</small><span class="sp"></span><button type="button" class="a a-quiet" data-act="clear">Clear</button></div>
+      <div class="slot"><div class="inner"><div class="fin-row">${ic('i-check-circle', 'done')}
+        <div class="al-main"><div class="req-h"><b>aurora-web</b>${chip('feature/charts', 'i-branch')}${chip('e91b', 'i-terminal')}<span class="sp"></span>${appBtn('Ghostty')}<span class="age" data-age>now</span></div>
+        <div class="req-sub">Added the visx line chart and tests.</div></div>
+        <button type="button" class="x" data-act="dismiss" aria-label="Dismiss">${ic('i-x')}</button></div></div></div>`;
+    finEl.querySelector('.slot').dataset.t0 = Date.now();
+    update();
+    if (!island.classList.contains('open')) later(() => setOpen(true), 700);
+    say('Finished: aurora-web. Added the visx line chart and tests.');
+    scheduleAuto();
+  }
+
+  function nextScene() {
+    if (sceneIx >= scenes.length - 1) return;
+    sceneIx++;
+    scenes[sceneIx].forEach((key, k) => later(() => arrive(key), k * 1500));
+  }
+
+  function resolve(slot, text, tone) {
+    if (slot.dataset.gone) return;
+    slot.dataset.gone = '1';
+    const hadFocus = slot.contains(document.activeElement);
+    slot.querySelector('.inner').inert = true;
+    slot.classList.add('resolved');
+    slot.insertAdjacentHTML('beforeend', `<div class="confirm ${tone}" role="status">${ic(tone === 'no' ? 'i-x' : 'i-check-circle')}${esc(text)}</div>`);
+    clearAuto();
+    later(() => {
+      if (!reduce) slot.classList.add('leave');
+      later(() => remove(slot, hadFocus), 300);
+    }, 800);
+  }
+
+  function remove(slot, hadFocus) {
+    queue = queue.filter(s => s !== slot);
+    const g = slot.parentElement;
+    slot.remove();
+    if (g && g.classList.contains('group') && !g.querySelector('.slot')) g.remove();
+    update();
+    if (hadFocus) (queue[0] ? queue[0].querySelector('button:not([disabled])') : wings).focus();
+    if (!queue.length) {
+      if (!hovered && !focused && !reduce) setOpen(false);
+      later(nextScene, reduce ? 0 : 1100);
+    }
+    scheduleAuto();
+  }
+
+  function clearFinished() {
+    const hadFocus = finEl.contains(document.activeElement);
+    finShown = false; finEl.innerHTML = '';
+    update();
+    if (hadFocus) wings.focus();
+    if (!queue.length && !hovered && !focused) setOpen(false);
+    if (sceneIx >= scenes.length - 1) statusEl.textContent = 'That’s the whole tour. Replay to see it again.';
+    scheduleAuto();
+  }
+
+  function scheduleAuto() {
+    clearAuto();
+    renderStatus();
+    if (!canAuto()) return;
+    const head = queue[0];
+    if (head && !head.dataset.gone) {
+      head._it.auto.forEach(([ms, fn]) => autoT.push(setTimeout(() => fn(head), ms)));
+    } else if (finShown) {
+      autoT.push(setTimeout(() => setOpen(false), 3600), setTimeout(restart, 6200));
+    } else if (sceneIx >= scenes.length - 1 && !queue.length) {
+      autoT.push(setTimeout(restart, 1800));
+    }
+  }
+
+  function restart() {
+    flowT.forEach(clearTimeout); flowT = []; clearAuto();
+    queue = []; finShown = false; sceneIx = -1;
+    reqsEl.innerHTML = ''; alertsEl.innerHTML = ''; finEl.innerHTML = '';
+    setOpen(false); update();
+    later(nextScene, reduce ? 0 : 900);
+    renderStatus();
+  }
+
+  function renderStatus() {
+    pauseBtn.querySelector('span').textContent = userPaused ? 'Play' : 'Pause';
+    pauseBtn.querySelector('use').setAttribute('href', userPaused ? '#i-play' : '#i-pause');
+    pauseBtn.hidden = reduce;
+    statusEl.textContent = reduce ? 'Reduced motion is on, so nothing plays by itself. Every button works.'
+      : userPaused ? 'Paused. Every button in the notch works.'
+      : paused() ? 'Paused while you try it. Every button works.'
+      : 'Plays by itself. Hover or focus the notch to pause.';
+  }
+
+  // Elapsed time on every card, like the app's 1-second timeline.
+  function tick() {
+    const now = Date.now();
+    panel.querySelectorAll('[data-age]').forEach(el => {
+      const t0 = Number(el.closest('[data-t0]')?.dataset.t0 || now);
+      const s = Math.max(0, Math.round((now - t0) / 1000));
+      el.textContent = s < 3 ? 'now' : s < 60 ? `${s}s` : `${Math.floor(s / 60)}m`;
+    });
+  }
+  setInterval(() => { if (inView && !document.hidden) tick(); }, 1000);
+
+  function tooltip(btn) {
+    const wrap = btn.parentElement;
+    if (wrap.querySelector('.tip')) return;
+    wrap.insertAdjacentHTML('beforeend', '<span class="tip" role="status">Jumps to the exact terminal tab</span>');
+    setTimeout(() => wrap.querySelector('.tip')?.remove(), 1900);
+  }
+
+  function setError(input, msg) {
+    const err = document.getElementById(input.getAttribute('aria-describedby'));
+    err.textContent = msg;
+    input.setAttribute('aria-invalid', msg ? 'true' : 'false');
+  }
+
+  function questionReady(slot) {
+    const other = q('.other', slot);
+    const ok = !!q('[data-act=opt][aria-pressed=true]', slot) || (!other.hidden && q('input', other).value.trim() !== '');
+    q('[data-act=submit]', slot).setAttribute('aria-disabled', String(!ok));
+    return ok;
+  }
+
+  function submit(slot) {
+    const it = slot._it;
+    if (it.kind === 'question') {
+      if (!questionReady(slot)) { say('Pick an option or type your own answer first.'); return; }
+      const pick = q('[data-act=opt][aria-pressed=true]', slot);
+      const answer = pick ? pick.querySelector('span').firstChild.textContent : q('.other input', slot).value.trim();
+      return resolve(slot, `Answered: ${answer}`, 'ok');
+    }
+    const input = q('input', slot);
+    if (!input.value.trim()) { setError(input, 'Required'); input.focus(); return; }
+    resolve(slot, 'Submitted', 'ok');
+  }
+
+  // ----- Events
+  panel.addEventListener('click', e => {
+    const b = e.target.closest('[data-act]');
+    if (!b || b.getAttribute('aria-disabled') === 'true' && b.dataset.act !== 'submit') return;
+    if (e.isTrusted) { engagedUntil = Date.now() + 8000; scheduleAuto(); later(scheduleAuto, 8100); }
+    const slot = b.closest('.slot');
+    const it = slot && slot._it;
+    switch (b.dataset.act) {
+      case 'jump': tooltip(b); break;
+      case 'more': {
+        const open = b.getAttribute('aria-expanded') !== 'true';
+        const d = document.getElementById(b.getAttribute('aria-controls'));
+        d.hidden = !open;
+        b.setAttribute('aria-expanded', String(open));
+        // As in the app: "Show full …" once, then "Less" / "Details".
+        b.querySelector('span').textContent = open ? 'Less' : 'Details';
+        b.classList.replace('a-q', 'a-quiet');
+        q('.req-body', slot)?.classList.toggle('clamp', !open);
+        checkOverflow();
+        break;
+      }
+      case 'allow': case 'always': case 'deny':
+        resolve(slot, it.done[b.dataset.act], b.dataset.act === 'deny' && !it.plan ? 'no' : b.dataset.act === 'deny' ? 'neutral' : 'ok'); break;
+      case 'opt':
+        slot.querySelectorAll('[data-act=opt]').forEach(o => o.setAttribute('aria-pressed', String(o === b)));
+        q('.other', slot).hidden = true; q('[data-act=other]', slot).hidden = false;
+        questionReady(slot); break;
+      case 'other': {
+        slot.querySelectorAll('[data-act=opt]').forEach(o => o.setAttribute('aria-pressed', 'false'));
+        b.hidden = true;
+        const o = q('.other', slot); o.hidden = false; q('input', o).focus();
+        questionReady(slot); checkOverflow(); break;
+      }
+      case 'other-x':
+        q('.other', slot).hidden = true; q('.other input', slot).value = '';
+        q('[data-act=other]', slot).hidden = false; q('[data-act=other]', slot).focus();
+        questionReady(slot); break;
+      case 'pick':
+        b.parentElement.querySelectorAll('[data-act=pick]').forEach(o => o.setAttribute('aria-pressed', String(o === b))); break;
+      case 'switch': b.setAttribute('aria-checked', String(b.getAttribute('aria-checked') !== 'true')); break;
+      case 'submit': submit(slot); break;
+      case 'decline': resolve(slot, 'Declined', 'no'); break;
+      case 'cancel': resolve(slot, 'Cancelled', 'neutral'); break;
+      case 'term': resolve(slot, `Sent back to ${it.app}`, 'neutral'); break;
+      case 'dismiss':
+        if (slot && slot._it) resolve(slot, 'Dismissed', 'neutral'); else clearFinished();
+        break;
+      case 'clear': clearFinished(); break;
+    }
+  });
+  panel.addEventListener('input', e => {
+    const slot = e.target.closest('.slot');
+    if (!slot) return;
+    if (slot._it.kind === 'question') questionReady(slot);
+    else if (e.target.matches('.field-in')) setError(e.target, e.target.value.trim() ? '' : 'Required');
+  });
+  panel.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.matches('input')) { e.preventDefault(); submit(e.target.closest('.slot')); }
+  });
+  panel.addEventListener('scroll', checkOverflow, { passive: true });
+
+  wings.addEventListener('click', () => setOpen(!island.classList.contains('open')));
+  island.addEventListener('mouseenter', () => { hovered = true; setOpen(true); scheduleAuto(); });
+  island.addEventListener('mouseleave', () => {
+    hovered = false;
+    if (!queue.length && !finShown) setOpen(false);
+    scheduleAuto();
+  });
+  island.addEventListener('focusin', e => {
+    if (!e.target.matches(':focus-visible')) return;
+    focused = true; setOpen(true); scheduleAuto();
+  });
+  island.addEventListener('focusout', e => {
+    if (island.contains(e.relatedTarget)) return;
+    focused = false; scheduleAuto();
+  });
+  pauseBtn.addEventListener('click', () => { userPaused = !userPaused; scheduleAuto(); });
+  replayBtn.addEventListener('click', () => { userPaused = false; restart(); });
+  document.addEventListener('visibilitychange', scheduleAuto);
+
+  new IntersectionObserver(([e]) => {
+    inView = e.isIntersecting;
+    if (inView && !started) { started = true; restart(); }
+    scheduleAuto();
+  }, { threshold: .3 }).observe(stage);
+  renderStatus();
 })();
 </script>
 </body>
