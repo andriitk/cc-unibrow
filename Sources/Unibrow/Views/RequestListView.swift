@@ -76,6 +76,8 @@ struct RequestListView: View {
                 onDecide: { model.decide(request, $0) },
                 onSendToTerminal: { model.sendToTerminal(request) }
             )
+            // A fresh card (and review state) for every request.
+            .id(request.id)
         }
     }
 }

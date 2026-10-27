@@ -41,6 +41,32 @@ public struct ToolSummary: Sendable, Equatable {
         public let hiddenCharacters: Int
         /// The input contains control, bidi or invisible characters, shown escaped.
         public let hasEscapedCharacters: Bool
+        /// A command contains non-ASCII characters, which can look like ASCII
+        /// (homoglyphs) or hide; the detail has to be opened.
+        public let hasNonASCII: Bool
+        /// Input fields the card has no place for, e.g. `timeout` or a field a
+        /// future Claude Code adds. With any of them the detail is the full input.
+        public let extraKeys: [String]
+        /// Extra fields that change how safely the tool runs, such as
+        /// `dangerouslyDisableSandbox`. The card calls them out.
+        public let flaggedKeys: [String]
+
+        init(
+            fitsInHeadline: Bool,
+            lineCount: Int,
+            hiddenCharacters: Int,
+            hasEscapedCharacters: Bool,
+            hasNonASCII: Bool = false,
+            extraKeys: [String] = []
+        ) {
+            self.fitsInHeadline = fitsInHeadline && !hasNonASCII && extraKeys.isEmpty
+            self.lineCount = lineCount
+            self.hiddenCharacters = hiddenCharacters
+            self.hasEscapedCharacters = hasEscapedCharacters
+            self.hasNonASCII = hasNonASCII
+            self.extraKeys = extraKeys
+            self.flaggedKeys = extraKeys.filter(ToolSummary.isSecuritySensitive)
+        }
 
         public var isTruncated: Bool { hiddenCharacters > 0 }
         public var isMultiLine: Bool { lineCount > 1 }
@@ -49,6 +75,13 @@ public struct ToolSummary: Sendable, Equatable {
         /// Only a complete detail can be approved here; a truncated one goes
         /// to the terminal, which shows everything.
         public var canApproveHere: Bool { !isTruncated }
+
+        /// Whether the card may enable Allow for `requestID`. `reviewedRequestID`
+        /// is the request whose detail the user opened; comparing IDs keeps a
+        /// review from carrying over to another request that reuses the view.
+        public func allowsApproval<ID: Equatable>(of requestID: ID, reviewedRequestID: ID?) -> Bool {
+            canApproveHere && (fitsInHeadline || reviewedRequestID == requestID)
+        }
     }
 
     /// - Parameter headlineIsComplete: the headline is derived from the whole
@@ -61,7 +94,8 @@ public struct ToolSummary: Sendable, Equatable {
         caption: String? = nil,
         detail: Detail? = nil,
         symbol: String,
-        headlineIsComplete: Bool = true
+        headlineIsComplete: Bool = true,
+        flagsNonASCII: Bool = false
     ) {
         let headlineFits = Self.fitsOnOneLine(headline)
         // A long or multi-line headline with nothing behind it gets a detail,
@@ -78,8 +112,85 @@ public struct ToolSummary: Sendable, Equatable {
             fitsInHeadline: detail == nil || (headlineIsComplete && headlineFits),
             lineCount: display?.lineCount ?? (headline.isEmpty ? 0 : 1),
             hiddenCharacters: display?.hiddenCharacters ?? 0,
-            hasEscapedCharacters: (display?.hasEscapedCharacters ?? false) || Self.escaped(headline).changed
+            hasEscapedCharacters: (display?.hasEscapedCharacters ?? false) || Self.escaped(headline).changed,
+            hasNonASCII: flagsNonASCII && !headline.unicodeScalars.allSatisfy(\.isASCII)
         )
+    }
+
+    private init(title: String, headline: String, caption: String?, detail: Detail?, symbol: String, review: Review) {
+        self.title = title
+        self.headline = headline
+        self.caption = caption
+        self.detail = detail
+        self.symbol = symbol
+        self.review = review
+    }
+
+    /// The same card, but its detail becomes the whole input as JSON, because
+    /// the input has fields the card would not show otherwise.
+    private func showingFullInput(_ input: JSONValue, extraKeys: [String]) -> ToolSummary {
+        let full = ToolSummary(title: title, headline: "", detail: .code(input.prettyString), symbol: symbol)
+        return ToolSummary(
+            title: title,
+            headline: headline,
+            caption: caption,
+            detail: full.detail,
+            symbol: symbol,
+            review: Review(
+                fitsInHeadline: false,
+                lineCount: full.review.lineCount,
+                hiddenCharacters: full.review.hiddenCharacters,
+                hasEscapedCharacters: review.hasEscapedCharacters || full.review.hasEscapedCharacters,
+                hasNonASCII: review.hasNonASCII,
+                extraKeys: extraKeys
+            )
+        )
+    }
+
+    /// Input fields each tool's card shows, or that cannot change what the
+    /// tool does beyond that (`Read`'s range, `Grep`'s filters). `nil` means
+    /// the headline lists every field (MCP and unknown tools).
+    static func representedKeys(for toolName: String) -> Set<String>? {
+        switch toolName {
+        case "Bash": ["command", "description"]
+        case "Edit": ["file_path", "old_string", "new_string", "replace_all"]
+        case "MultiEdit": ["file_path", "edits"]
+        case "Write": ["file_path", "content"]
+        case "NotebookEdit": ["notebook_path", "new_source"]
+        case "Read": ["file_path", "offset", "limit", "pages"]
+        case "Glob": ["pattern", "path"]
+        case "Grep":
+            ["pattern", "path", "glob", "type", "output_mode", "-i", "-n", "-A", "-B", "-C",
+             "context", "multiline", "head_limit", "offset"]
+        case "WebFetch": ["url", "prompt"]
+        case "WebSearch": ["query"]
+        case "ExitPlanMode": ["plan"]
+        default: nil
+        }
+    }
+
+    /// Sorted input fields the card for `toolName` would not show.
+    static func extraKeys(toolName: String, input: JSONValue) -> [String] {
+        guard let known = representedKeys(for: toolName), let object = input.objectValue else { return [] }
+        var extra = object.keys.filter { !known.contains($0) }
+        if toolName == "MultiEdit" {
+            let editKeys: Set<String> = ["old_string", "new_string", "replace_all"]
+            for edit in object["edits"]?.arrayValue ?? [] {
+                guard let fields = edit.objectValue else {
+                    extra.append("edits[]")
+                    continue
+                }
+                extra += fields.keys.filter { !editKeys.contains($0) }.map { "edits[].\($0)" }
+            }
+        }
+        return Array(Set(extra)).sorted()
+    }
+
+    /// Fields that weaken a safety check, whatever the tool.
+    static func isSecuritySensitive(_ key: String) -> Bool {
+        let lowered = key.lowercased()
+        return lowered.contains("dangerous") || lowered.contains("sandbox") || lowered.contains("bypass")
+            || lowered.contains("skip") && lowered.contains("permission")
     }
 
     /// Display limits. A `Write` of a multi-megabyte file must not turn into a
@@ -140,10 +251,14 @@ public struct ToolSummary: Sendable, Equatable {
     /// Newlines and tabs stay, so code still reads as code. ZWJ stays too:
     /// it only joins emoji.
     static func escaped(_ text: String) -> (text: String, changed: Bool) {
-        guard text.unicodeScalars.contains(where: needsEscape) else { return (text, false) }
+        var previous: Unicode.Scalar?
+        guard text.unicodeScalars.contains(where: { defer { previous = $0 }; return needsEscape($0, after: previous) })
+        else { return (text, false) }
+        previous = nil
         var result = String.UnicodeScalarView()
         for scalar in text.unicodeScalars {
-            guard needsEscape(scalar) else {
+            defer { previous = scalar }
+            guard needsEscape(scalar, after: previous) else {
                 result.append(scalar)
                 continue
             }
@@ -158,20 +273,41 @@ public struct ToolSummary: Sendable, Equatable {
         return (String(result), true)
     }
 
-    private static func needsEscape(_ scalar: Unicode.Scalar) -> Bool {
-        switch scalar {
-        case "\n", "\t", "\u{200D}": return false
+    private static func needsEscape(_ scalar: Unicode.Scalar, after previous: Unicode.Scalar?) -> Bool {
+        if scalar.isASCII {
+            return scalar != "\n" && scalar != "\t" && scalar.properties.generalCategory == .control
+        }
+        let properties = scalar.properties
+        // ZWJ and emoji variation selectors are invisible on their own but
+        // only join or style the emoji right before them: 👨‍👩‍👧, ❤️.
+        if scalar == "\u{200D}" || scalar == "\u{FE0E}" || scalar == "\u{FE0F}" {
+            guard let previous else { return true }
+            let joinsEmoji = (previous.properties.isEmoji && !previous.isASCII)
+                || (scalar == "\u{200D}" && previous == "\u{FE0F}")
+            return !joinsEmoji
+        }
+        switch properties.generalCategory {
+        case .control, .format, .lineSeparator, .paragraphSeparator, .spaceSeparator: return true
         default: break
         }
-        switch scalar.properties.generalCategory {
-        case .control, .format, .lineSeparator, .paragraphSeparator: return true
-        default: return false
-        }
+        // Default-ignorable code points render as nothing: zero-width
+        // characters, variation selectors, Hangul fillers, tag characters.
+        return properties.isDefaultIgnorableCodePoint
+            || properties.isWhitespace
+            || scalar == "\u{2800}" // braille blank looks like a space
+            || scalar == "\u{115F}" || scalar == "\u{1160}" || scalar == "\u{3164}" || scalar == "\u{FFA0}"
+            || (0xE0000...0xE007F).contains(scalar.value)
     }
 
     /// - Parameter home: abbreviated to `~` in headlines. Details always keep
     ///   the exact text, so what you approve is what runs.
     public init(toolName: String, input: JSONValue, cwd: String = "", home: String = NSHomeDirectory()) {
+        let summary = Self.mapped(toolName: toolName, input: input, cwd: cwd, home: home)
+        let extra = Self.extraKeys(toolName: toolName, input: input)
+        self = extra.isEmpty ? summary : summary.showingFullInput(input, extraKeys: extra)
+    }
+
+    private static func mapped(toolName: String, input: JSONValue, cwd: String, home: String) -> ToolSummary {
         let string = { (key: String) in input[key]?.stringValue }
         let path = { (key: String) in
             string(key).map { Self.abbreviatingHome(Self.relativePath($0, to: cwd), home: home) }
@@ -180,16 +316,17 @@ public struct ToolSummary: Sendable, Equatable {
         switch toolName {
         case "Bash":
             let command = string("command") ?? ""
-            self.init(
+            return ToolSummary(
                 title: "Bash",
                 headline: Self.abbreviatingHome(command, home: home),
                 caption: string("description"),
                 detail: .code(command),
-                symbol: "terminal"
+                symbol: "terminal",
+                flagsNonASCII: true
             )
 
         case "Edit":
-            self.init(
+            return ToolSummary(
                 title: "Edit",
                 headline: path("file_path") ?? "file",
                 caption: input["replace_all"]?.boolValue == true ? "Replace all occurrences" : nil,
@@ -200,10 +337,12 @@ public struct ToolSummary: Sendable, Equatable {
 
         case "MultiEdit":
             let edits = input["edits"]?.arrayValue ?? []
-            self.init(
+            return ToolSummary(
                 title: "Edit",
                 headline: path("file_path") ?? "file",
-                caption: "\(edits.count) edits",
+                caption: edits.contains { $0["replace_all"]?.boolValue == true }
+                    ? "\(edits.count) edits, some replace all occurrences"
+                    : "\(edits.count) edits",
                 detail: .diff(
                     removed: edits.compactMap { $0["old_string"]?.stringValue }.joined(separator: "\n⋯\n"),
                     added: edits.compactMap { $0["new_string"]?.stringValue }.joined(separator: "\n⋯\n")
@@ -213,7 +352,7 @@ public struct ToolSummary: Sendable, Equatable {
             )
 
         case "Write":
-            self.init(
+            return ToolSummary(
                 title: "Write",
                 headline: path("file_path") ?? "file",
                 detail: string("content").map(Detail.code),
@@ -222,7 +361,7 @@ public struct ToolSummary: Sendable, Equatable {
             )
 
         case "NotebookEdit":
-            self.init(
+            return ToolSummary(
                 title: "Notebook",
                 headline: path("notebook_path") ?? "notebook",
                 detail: string("new_source").map(Detail.code),
@@ -231,10 +370,10 @@ public struct ToolSummary: Sendable, Equatable {
             )
 
         case "Read":
-            self.init(title: "Read", headline: path("file_path") ?? "file", symbol: "doc.text")
+            return ToolSummary(title: "Read", headline: path("file_path") ?? "file", symbol: "doc.text")
 
         case "Glob", "Grep":
-            self.init(
+            return ToolSummary(
                 title: toolName,
                 headline: string("pattern") ?? "",
                 caption: path("path"),
@@ -242,7 +381,7 @@ public struct ToolSummary: Sendable, Equatable {
             )
 
         case "WebFetch":
-            self.init(
+            return ToolSummary(
                 title: "Fetch",
                 headline: string("url") ?? "",
                 caption: string("prompt"),
@@ -250,11 +389,11 @@ public struct ToolSummary: Sendable, Equatable {
             )
 
         case "WebSearch":
-            self.init(title: "Search", headline: string("query") ?? "", symbol: "magnifyingglass.circle")
+            return ToolSummary(title: "Search", headline: string("query") ?? "", symbol: "magnifyingglass.circle")
 
         case UserQuestion.toolName:
             let questions = UserQuestion.parse(input) ?? []
-            self.init(
+            return ToolSummary(
                 title: "Question",
                 headline: questions.first?.question ?? "Claude has a question",
                 caption: questions.count > 1 ? "\(questions.count) questions" : nil,
@@ -263,7 +402,7 @@ public struct ToolSummary: Sendable, Equatable {
 
         case "ExitPlanMode":
             let plan = string("plan") ?? ""
-            self.init(
+            return ToolSummary(
                 title: "Plan",
                 headline: plan.replacingOccurrences(of: "#", with: ""),
                 caption: "Approve the plan and start coding",
@@ -274,14 +413,14 @@ public struct ToolSummary: Sendable, Equatable {
 
         default:
             if let mcp = Self.parseMCP(toolName) {
-                self.init(
+                return ToolSummary(
                     title: "\(mcp.server) · \(mcp.tool)",
                     headline: Self.inlineArguments(input),
                     detail: Self.jsonDetail(input),
                     symbol: "puzzlepiece.extension"
                 )
             } else {
-                self.init(
+                return ToolSummary(
                     title: toolName,
                     headline: Self.inlineArguments(input),
                     detail: Self.jsonDetail(input),
@@ -329,16 +468,20 @@ public struct ToolSummary: Sendable, Equatable {
         return String(trimmed[..<newline]) + " …"
     }
 
-    /// `{"repo": "x", "title": "y"}` → `repo: x, title: y`.
+    /// `{"repo": "x", "n": 3}` → `n: 3, repo: "x"`. Values are JSON, so a
+    /// value such as `x", force: "true` cannot pose as another field, and a
+    /// newline shows as `\n`. Keys other than plain identifiers are quoted too.
     static func inlineArguments(_ input: JSONValue) -> String {
         guard let object = input.objectValue, !object.isEmpty else { return "" }
+        func json(_ value: JSONValue) -> String {
+            guard let data = try? value.encoded() else { return "…" }
+            return String(decoding: data, as: UTF8.self)
+        }
         return object.keys.sorted().map { key in
-            let value = object[key].map { value -> String in
-                if let string = value.stringValue { return string }
-                guard let data = try? value.encoded() else { return "…" }
-                return String(decoding: data, as: UTF8.self)
-            } ?? ""
-            return "\(key): \(value)"
+            let plain = !key.isEmpty && key.unicodeScalars.allSatisfy {
+                $0.isASCII && (CharacterSet.alphanumerics.contains($0) || "_-.".unicodeScalars.contains($0))
+            }
+            return "\(plain ? key : json(.string(key))): \(object[key].map(json) ?? "null")"
         }.joined(separator: ", ")
     }
 

@@ -9,9 +9,11 @@ struct RequestCard: View {
     let onSendToTerminal: () -> Void
 
     @State private var isShowingDetail = false
-    /// The user opened the detail at least once. Allow waits for it whenever
-    /// the headline alone does not show the whole input.
-    @State private var hasSeenDetail = false
+    /// The request whose detail the user opened. Allow waits for it whenever
+    /// the headline alone does not show the whole input. An ID, not a flag,
+    /// so a review never carries over if SwiftUI reuses this view for
+    /// another request.
+    @State private var reviewedRequestID: PendingRequest.ID?
 
     private var request: PendingRequest { context.request }
 
@@ -37,7 +39,7 @@ struct RequestCard: View {
                     .lineLimit(2)
             }
 
-            if summary.detail != nil, review.isMultiLine || review.isTruncated || review.hasEscapedCharacters {
+            if Self.hasNotes(review) {
                 ReviewNotes(review: review)
             }
 
@@ -63,27 +65,34 @@ struct RequestCard: View {
     }
 
     /// Allow needs the whole input on screen: it fits in the headline, or the
-    /// user opened the detail, and nothing was cut from it. Deny never waits.
+    /// user opened this request's detail, and nothing was cut from it. Deny
+    /// never waits.
     private func canAllow(_ review: ToolSummary.Review) -> Bool {
-        review.canApproveHere && (review.fitsInHeadline || hasSeenDetail)
+        review.allowsApproval(of: request.id, reviewedRequestID: reviewedRequestID)
+    }
+
+    private static func hasNotes(_ review: ToolSummary.Review) -> Bool {
+        review.isMultiLine || review.isTruncated || review.hasEscapedCharacters
+            || review.hasNonASCII || !review.extraKeys.isEmpty
     }
 
     private func actions(summary: ToolSummary) -> some View {
         let review = summary.review
-        let mustReview = review.requiresExpanding && !hasSeenDetail
+        let mustReview = review.requiresExpanding && reviewedRequestID != request.id
+        let noun = review.extraKeys.isEmpty ? Self.noun(for: request.toolName) : "input"
         let allowHelp = !review.canApproveHere
             ? "Too long to show here in full. Answer in \(context.hostAppName)."
-            : mustReview ? "Open the full \(Self.noun(for: request.toolName)) first" : nil
+            : mustReview ? "Open the full \(noun) first" : nil
         return HStack(spacing: 6) {
             if summary.detail != nil {
                 Button {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
                         isShowingDetail.toggle()
-                        if isShowingDetail { hasSeenDetail = true }
+                        if isShowingDetail { reviewedRequestID = request.id }
                     }
                 } label: {
                     Label(
-                        isShowingDetail ? "Less" : mustReview ? "Show full \(Self.noun(for: request.toolName))" : "Details",
+                        isShowingDetail ? "Less" : mustReview ? "Show full \(noun)" : "Details",
                         systemImage: isShowingDetail ? "chevron.up" : "chevron.down"
                     )
                     .imageScale(.small)
@@ -130,17 +139,37 @@ private struct ReviewNotes: View {
     let review: ToolSummary.Review
 
     var body: some View {
-        HStack(spacing: 4) {
-            if review.isMultiLine {
-                Chip(text: "\(review.lineCount) lines", symbol: "text.alignleft")
-            }
-            if review.isTruncated {
-                Chip(text: "\(review.hiddenCharacters) more characters", symbol: "scissors")
-            }
-            if review.hasEscapedCharacters {
-                Chip(text: "hidden characters shown escaped", symbol: "exclamationmark.triangle", color: .orange)
-                    .help("Control, bidi or invisible characters appear as \\r, \\u{…}")
-            }
+        // One row when it fits, otherwise one chip per line: never clipped.
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 4) { chips }
+            VStack(alignment: .leading, spacing: 4) { chips }
+        }
+    }
+
+    @ViewBuilder
+    private var chips: some View {
+        ForEach(review.flaggedKeys, id: \.self) { key in
+            Chip(text: key, symbol: "exclamationmark.shield", color: .orange)
+                .help("This request sets \(key)")
+        }
+        if review.extraKeys.count > review.flaggedKeys.count {
+            let others = review.extraKeys.count - review.flaggedKeys.count
+            Chip(text: "\(others) more field\(others == 1 ? "" : "s")", symbol: "curlybraces")
+                .help(review.extraKeys.joined(separator: ", "))
+        }
+        if review.isMultiLine {
+            Chip(text: "\(review.lineCount) lines", symbol: "text.alignleft")
+        }
+        if review.isTruncated {
+            Chip(text: "\(review.hiddenCharacters) more characters", symbol: "scissors")
+        }
+        if review.hasNonASCII {
+            Chip(text: "non-ASCII characters", symbol: "character", color: .orange)
+                .help("The command contains characters outside ASCII, which can look like others")
+        }
+        if review.hasEscapedCharacters {
+            Chip(text: "hidden characters shown escaped", symbol: "exclamationmark.triangle", color: .orange)
+                .help("Control, bidi or invisible characters appear as \\r, \\u{…}")
         }
     }
 }

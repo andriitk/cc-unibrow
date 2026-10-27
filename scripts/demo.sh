@@ -27,5 +27,8 @@ request demo-2 "$HOME/code/landing" mcp__github__create_pull_request '{"repo":"m
 # Multi-line: Allow stays off until "Show full command" was opened.
 request demo-1 "$HOME/code/shop-api" Bash '{"command":"npm ci\nnpm run build\nrm -rf ./dist-old","description":"Clean rebuild"}'
 
-echo "Six requests sent. Answer them in the notch (Ctrl-C to abandon)."
+# An extra field: the detail becomes the full input, the sandbox flag is called out.
+request demo-3 "$HOME/code/infra" Bash '{"command":"make deploy","description":"Deploy","dangerouslyDisableSandbox":true}'
+
+echo "Seven requests sent. Answer them in the notch (Ctrl-C to abandon)."
 wait

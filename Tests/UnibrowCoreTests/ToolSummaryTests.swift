@@ -43,7 +43,7 @@ struct ToolSummaryTests {
             input: .object(["title": .string("Bug"), "repo": .string("a/b")])
         )
         #expect(summary.title == "github · create_issue")
-        #expect(summary.headline == "repo: a/b, title: Bug")
+        #expect(summary.headline == #"repo: "a/b", title: "Bug""#)
         #expect(summary.symbol == "puzzlepiece.extension")
     }
 

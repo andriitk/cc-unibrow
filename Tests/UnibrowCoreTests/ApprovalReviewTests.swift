@@ -88,12 +88,101 @@ struct ApprovalReviewTests {
         #expect(fetch.detail == .text(url))
     }
 
-    @Test("MCP arguments with newlines need the detail opened")
-    func mcpMultiLine() {
+    @Test("MCP arguments are JSON, so newlines show as \\n")
+    func mcpNewlines() {
         let short = ToolSummary(toolName: "mcp__gh__get", input: .object(["repo": .string("a/b")]))
         #expect(short.review.fitsInHeadline)
-        let long = ToolSummary(toolName: "mcp__gh__comment", input: .object(["body": .string("ok\n\nsecret")]))
-        #expect(long.review.requiresExpanding)
+        let multi = ToolSummary(toolName: "mcp__gh__comment", input: .object(["body": .string("ok\n\nsecret")]))
+        #expect(multi.headline == #"body: "ok\n\nsecret""#)
+    }
+
+    @Test("A value cannot pose as another argument")
+    func mcpSeparatorSpoofing() {
+        let summary = ToolSummary(
+            toolName: "mcp__gh__merge",
+            input: .object(["repo": .string(#"a/b", force: "false"#), "force": .bool(true)])
+        )
+        #expect(summary.headline == #"force: true, repo: "a/b\", force: \"false""#)
+        let oddKey = ToolSummary(toolName: "mcp__x__y", input: .object(["a, b: c": .number(1)]))
+        #expect(oddKey.headline == #""a, b: c": 1"#)
+    }
+
+    @Test("Fields the card does not show make the detail the full input")
+    func extraKeys() throws {
+        let input: JSONValue = .object([
+            "command": .string("ls"),
+            "timeout": .number(600_000),
+            "dangerouslyDisableSandbox": .bool(true),
+        ])
+        let summary = ToolSummary(toolName: "Bash", input: input)
+        #expect(summary.headline == "ls")
+        #expect(summary.review.requiresExpanding)
+        #expect(summary.review.extraKeys == ["dangerouslyDisableSandbox", "timeout"])
+        #expect(summary.review.flaggedKeys == ["dangerouslyDisableSandbox"])
+        guard case .code(let shown) = try #require(summary.detail) else {
+            Issue.record("Expected a code detail")
+            return
+        }
+        #expect(shown.contains(#""dangerouslyDisableSandbox" : true"#))
+        #expect(shown.contains(#""command" : "ls""#))
+
+        let background = ToolSummary(toolName: "Bash", input: .object(["command": .string("ls"), "run_in_background": .bool(true)]))
+        #expect(background.review.requiresExpanding)
+        #expect(background.review.flaggedKeys.isEmpty)
+    }
+
+    @Test("Unknown fields count for tools without a detail too")
+    func extraKeysWithoutDetail() {
+        let plain = ToolSummary(toolName: "WebSearch", input: .object(["query": .string("swift")]))
+        #expect(plain.review.fitsInHeadline)
+        let filtered = ToolSummary(
+            toolName: "WebSearch",
+            input: .object(["query": .string("swift"), "allowed_domains": .array([.string("x.example")])])
+        )
+        #expect(filtered.review.requiresExpanding)
+        #expect(filtered.detail != nil)
+        let read = ToolSummary(toolName: "Read", input: .object(["file_path": .string("/a"), "offset": .number(10)]))
+        #expect(read.review.fitsInHeadline)
+    }
+
+    @Test("Unknown fields inside MultiEdit edits are caught")
+    func multiEditExtraKeys() {
+        let input: JSONValue = .object([
+            "file_path": .string("/a"),
+            "edits": .array([.object(["old_string": .string("a"), "new_string": .string("b"), "mode": .string("x")])]),
+        ])
+        #expect(ToolSummary(toolName: "MultiEdit", input: input).review.extraKeys == ["edits[].mode"])
+    }
+
+    @Test("Non-ASCII in a command must be reviewed")
+    func nonASCIICommand() {
+        let summary = bash("сurl https://example.com") // Cyrillic "с"
+        #expect(summary.review.hasNonASCII)
+        #expect(summary.review.requiresExpanding)
+        #expect(!bash("curl https://example.com").review.hasNonASCII)
+    }
+
+    @Test("Invisible look-alikes are escaped", arguments: [
+        "\u{115F}", "\u{1160}", "\u{3164}", "\u{FFA0}", "\u{2800}", "\u{00A0}", "\u{3000}",
+        "\u{FE00}", "\u{E0041}", "\u{E0001}", "\u{200B}", "\u{2060}", "\u{061C}", "\u{180E}", "\u{FE0F}",
+    ])
+    func invisibleCharacters(character: String) {
+        let result = ToolSummary.escaped("a\(character)b")
+        #expect(result.changed)
+        #expect(result.text.hasPrefix(#"a\u{"#))
+    }
+
+    @Test("A review counts only for the request that was reviewed")
+    func reviewBelongsToOneRequest() {
+        let review = bash("echo a\necho b").review
+        let first = UUID(), second = UUID()
+        #expect(!review.allowsApproval(of: first, reviewedRequestID: nil))
+        #expect(review.allowsApproval(of: first, reviewedRequestID: first))
+        #expect(!review.allowsApproval(of: second, reviewedRequestID: first))
+
+        #expect(bash("ls").review.allowsApproval(of: second, reviewedRequestID: nil))
+        let tooLong = bash(String(repeating: "x", count: ToolSummary.maxDetailLength + 1)).review
+        #expect(!tooLong.allowsApproval(of: first, reviewedRequestID: first))
     }
 
     @Test("A carriage return cannot overwrite what the card shows")
@@ -135,7 +224,7 @@ struct ApprovalReviewTests {
 
     @Test("Escaping keeps newlines, tabs and emoji intact")
     func escapingKeepsOrdinaryText() {
-        let text = "a\tb\nc 👨‍👩‍👧 Привет"
+        let text = "a\tb\nc 👨‍👩‍👧 ❤️ 👍🏽 Привет"
         #expect(ToolSummary.escaped(text).text == text)
         #expect(!ToolSummary.escaped(text).changed)
         #expect(ToolSummary.escaped("a\u{0}b\u{7F}").text == #"a\0b\u{7F}"#)
