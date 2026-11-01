@@ -1,0 +1,53 @@
+#!/bin/sh
+# Tells whether a compatible host app, not Unibrow.app, provides the Unibrow
+# socket on this Mac. Used by the hook shim and the bootstrap, which then
+# leave Unibrow.app alone: no install, no update, no launch.
+#
+#   unibrow-host     exit 0 and print the host app's path when a valid marker
+#                    names an installed app; exit 1 otherwise
+#
+# The host app writes the marker (see docs/ARCHITECTURE.md, "Compatible host
+# apps"):
+#
+#   ~/Library/Application Support/cc-unibrow/host.json
+#   {"version": 1, "appPath": "/Applications/Example.app", "bundleID": "com.example.host"}
+#
+# A marker counts only when it is a regular file (not a link) owned by the
+# user, in a directory owned by the user that nobody else can write to, and
+# the app at `appPath` exists and has exactly `bundleID`, which must not be
+# Unibrow's own. Anything else, including a marker whose app was deleted, is
+# ignored, so removing the host app brings Unibrow.app back by itself.
+set -u
+
+unibrow_bundle_id="dev.andriitk.unibrow"
+support="${HOME}/Library/Application Support/cc-unibrow"
+marker="${support}/host.json"
+
+[ -f "$marker" ] && [ ! -L "$marker" ] && [ -O "$marker" ] || exit 1
+[ -d "$support" ] && [ ! -L "$support" ] && [ -O "$support" ] || exit 1
+# No write access for group or others, on the directory or the marker.
+for path in "$support" "$marker"; do
+    mode=$(stat -f '%Lp' "$path" 2>/dev/null) || exit 1
+    case "$mode" in
+        *[2367]? | *[2367]) exit 1 ;;
+    esac
+done
+# A marker is a few hundred bytes; refuse anything that is not.
+[ "$(wc -c <"$marker" | tr -d ' ')" -le 4096 ] || exit 1
+
+field() { plutil -extract "$1" raw -o - "$marker" 2>/dev/null; }
+app=$(field appPath) || exit 1
+bundle_id=$(field bundleID) || exit 1
+
+case "$app" in
+    /*.app) ;;
+    *) exit 1 ;;
+esac
+case "$bundle_id" in
+    "" | *[!A-Za-z0-9.-]* | "$unibrow_bundle_id") exit 1 ;;
+esac
+[ -d "$app" ] || exit 1
+actual=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist" 2>/dev/null) || exit 1
+[ "$actual" = "$bundle_id" ] || exit 1
+
+printf '%s\n' "$app"

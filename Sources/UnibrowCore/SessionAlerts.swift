@@ -186,6 +186,10 @@ public struct SessionAlerts: Sendable, Equatable {
         case .stopFailure, .notification:
             // A new alert replaces the old one through `record`.
             nil
+        case .subagentStart, .subagentStop:
+            // Subagents come and go inside a turn; they say nothing about
+            // whether the user saw the alert.
+            nil
         }
     }
 

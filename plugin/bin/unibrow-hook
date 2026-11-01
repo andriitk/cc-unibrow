@@ -4,7 +4,8 @@
 # Forwards each hook to the relay that the Unibrow app links on launch.
 # Without the app, every event is a no-op so Claude Code behaves as usual.
 # Only SessionStart acts: it installs the app once, or updates an app older
-# than this plugin, in the background.
+# than this plugin, in the background, unless a compatible host app provides
+# the socket.
 relay="${HOME}/Library/Application Support/cc-unibrow/bin/unibrow-hook"
 
 # Hot path: every hook except SessionStart goes straight to the relay.
@@ -51,6 +52,13 @@ start_bootstrap() {
         </dev/null >>"${HOME}/Library/Logs/cc-unibrow-bootstrap.log" 2>&1 &
 }
 
+[ "${1:-}" = "SessionStart" ] || exit 0
+
+# A compatible host app provides the socket instead of Unibrow.app (it wrote
+# a valid marker, see unibrow-host): leave Unibrow.app alone. Once the host
+# app is removed its marker no longer counts and the checks below resume.
+"$here/unibrow-host" >/dev/null 2>&1 && exit 0
+
 if [ -x "$relay" ]; then
     # SessionStart with the app installed: update it if it is older than
     # this plugin. The relay link points into the app, at
@@ -70,8 +78,6 @@ if [ -x "$relay" ]; then
     fi
     exit 0
 fi
-
-[ "${1:-}" = "SessionStart" ] || exit 0
 
 # The app is installed but has never run (it links the relay on launch).
 for app in "${HOME}/Applications/Unibrow.app" "/Applications/Unibrow.app"; do

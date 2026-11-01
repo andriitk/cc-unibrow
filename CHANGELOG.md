@@ -22,6 +22,18 @@ All notable changes to this project are documented here. The format follows
 - An alert when a turn stops on an API error (rate limit, overload, sign-in,
   billing and others), with the details one click away, and when a
   background agent needs your input. Click to jump to the session.
+- The plugin leaves `Unibrow.app` alone (no install, update or start) while
+  a compatible host app serves the same socket and says so in
+  `~/Library/Application Support/cc-unibrow/host.json`. Removing that app
+  brings Unibrow back at the next session. Contract in
+  `docs/ARCHITECTURE.md`.
+- `SubagentStart` and `SubagentStop` hooks: the relay passes them, with
+  `agent_id` and `agent_type`, to the app, which ignores them for now.
+
+### Changed
+
+- The relay protocol is at version 2 (adds the subagent events). The app
+  accepts versions 1 and 2, and reads a message without a version as 1.
 
 ### Security
 

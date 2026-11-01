@@ -20,6 +20,10 @@ public enum HookEvent: String, Sendable, Codable, CaseIterable {
     case stopFailure = "StopFailure"
     /// Claude Code's notifications; the plugin forwards only `agent_needs_input`.
     case notification = "Notification"
+    /// A subagent started or finished (wire version 2). Unibrow itself shows
+    /// nothing for them; a compatible host app may.
+    case subagentStart = "SubagentStart"
+    case subagentStop = "SubagentStop"
 
     /// Whether the hook relay must wait for a decision from the app.
     public var expectsDecision: Bool { self == .permissionRequest || self == .elicitation }
@@ -46,7 +50,8 @@ public enum HookEvent: String, Sendable, Codable, CaseIterable {
     public var needsSessionDetails: Bool {
         switch self {
         case .permissionRequest, .elicitation, .stop, .stopFailure, .notification: true
-        case .postToolUse, .postToolUseFailure, .permissionDenied, .userPromptSubmit, .sessionEnd: false
+        case .postToolUse, .postToolUseFailure, .permissionDenied, .userPromptSubmit, .sessionEnd,
+             .subagentStart, .subagentStop: false
         }
     }
 }
@@ -76,6 +81,9 @@ public struct HookPayload: Sendable, Hashable {
     public var toolName: String? { raw["tool_name"]?.stringValue }
     public var toolInput: JSONValue? { raw["tool_input"] }
     public var toolUseID: String? { raw["tool_use_id"]?.stringValue }
+    /// Set when the hook fired inside a subagent, and on `SubagentStart` and
+    /// `SubagentStop`: which subagent (`agent_id`) and its kind (`agent_type`).
+    public var agentID: String? { raw["agent_id"]?.stringValue }
     public var agentType: String? { raw["agent_type"]?.stringValue }
     /// `Notification` only: which notification fired, e.g. `agent_needs_input`.
     public var notificationType: String? { raw["notification_type"]?.stringValue }

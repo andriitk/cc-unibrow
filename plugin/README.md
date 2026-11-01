@@ -40,7 +40,8 @@ is minified or compiled.
 | `Elicitation` | An MCP server asks for input (a form or a link to open). Sends it to the app and waits up to 110 seconds for your answer in the notch (Claude Code shows no dialog meanwhile); after that, without the app, or on any failure, prints nothing and Claude Code shows its own dialog. |
 | `StopFailure`, `Notification` (`agent_needs_input` only) | Tells the app that a turn stopped on an API error or that a background agent needs input, so it can show an alert. These run in the background. |
 | `PostToolUse`, `PostToolUseFailure`, `PermissionDenied`, `UserPromptSubmit`, `Stop`, `SessionEnd` | Tells the app that a request was answered elsewhere or that a turn finished, so it can remove the card or show a “finished” notice. These run in the background. |
-| `SessionStart` | If the app is missing, starts the one-time install below. If the installed app is older than this plugin, starts the same process as an update. Otherwise does nothing. |
+| `SubagentStart`, `SubagentStop` | Tells the app that a subagent started or finished (its ID and type). The Unibrow app ignores these for now. These run in the background. |
+| `SessionStart` | If the app is missing, starts the one-time install below. If the installed app is older than this plugin, starts the same process as an update. Otherwise does nothing. Also does nothing while a compatible host app provides the socket instead of Unibrow (below). |
 
 Without the app, `bin/unibrow-hook` reads the hook input to the end and
 exits with no output, so Claude Code treats it as "no decision" and asks as
@@ -76,6 +77,13 @@ session starts without the app, or with an app older than this plugin,
    (`tccutil reset Accessibility dev.andriitk.unibrow`), because macOS ties
    that permission to the old build; turn **Exact Window Focus** on again in
    the menu if you use it. No other app’s permissions are touched.
+
+**Compatible host apps.** Another app can serve the same socket in place of
+`Unibrow.app`. It says so by writing
+`~/Library/Application Support/cc-unibrow/host.json` with its path and bundle
+ID. While that app is installed with that bundle ID, the plugin does not
+install, update or start `Unibrow.app`. Once that app is removed, the file no
+longer counts and the steps above resume at the next session.
 
 It logs to `~/Library/Logs/cc-unibrow-bootstrap.log`. If it fails, for example
 offline, Claude Code says so once and it retries after an hour.

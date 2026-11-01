@@ -205,7 +205,7 @@ final class ApprovalServer: @unchecked Sendable {
             teardown(id)
             return
         }
-        guard message.version == WireProtocol.version else {
+        guard message.isSupported else {
             logger.error("Unsupported protocol version \(message.version)")
             teardown(id)
             return
