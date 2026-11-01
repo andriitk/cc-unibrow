@@ -16,28 +16,21 @@ import UnibrowCore
 
 func relay() -> Data? {
     let input = FileHandle.standardInput.readDataToEndOfFile()
-    guard let payload = try? HookPayload(data: input) else { return nil }
 
-    let eventName = CommandLine.arguments.dropFirst().first ?? payload.hookEventName ?? ""
-    guard let event = HookEvent(rawValue: eventName) else { return nil }
-
+    // Connect first: without the app there is nothing to look up.
     guard let fd = try? UnixSocket.connect(path: Paths.socketPath()) else { return nil }
     defer { close(fd) }
 
     // Session details for the cards that show them (requests, alerts and
     // "finished" notices): repository, and the process chain that leads to the app.
-    let needsRepository = event.needsSessionDetails
-    let repository = needsRepository ? payload.cwd.flatMap { GitBranch.repository(containing: $0) } : nil
-    let message = HookMessage(
-        event: event,
-        payload: payload.raw,
-        branch: repository?.branch,
-        projectRoot: repository?.root,
-        ancestorPIDs: needsRepository ? ProcessAncestry.candidates(of: getpid()) : nil,
-        propertyOrder: event == .elicitation
-            ? JSONKeyOrder.keys(in: input, at: ["requested_schema", "properties"])
-            : nil
-    )
+    guard let message = HookMessage.relayed(
+        input: input,
+        eventName: CommandLine.arguments.dropFirst().first,
+        repository: { GitBranch.repository(containing: $0) },
+        ancestors: { ProcessAncestry.candidates(of: getpid()) }
+    ) else { return nil }
+    let event = message.event
+
     guard let frame = try? WireProtocol.frame(message),
           (try? UnixSocket.writeAll(frame, to: fd)) != nil
     else { return nil }

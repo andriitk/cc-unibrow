@@ -33,7 +33,8 @@ Unibrow has three parts: a Claude Code **plugin** that registers hooks, a tiny
 | `PostToolUse`, `PostToolUseFailure`, `PermissionDenied` | async | A request was answered elsewhere: drop its card. |
 | `UserPromptSubmit`, `SessionEnd` | async | The session moved on: drop its cards, alert and “finished” notice. |
 | `Stop` | async | The turn ended: drop leftover cards, show a “finished” notice. |
-| `SessionStart` | sync, 5 s | Installs a missing app, or updates one older than the plugin (below). |
+| `SubagentStart`, `SubagentStop` | async | Passed through with `agent_id` and `agent_type` (wire version 2). Unibrow shows nothing for them yet. |
+| `SessionStart` | sync, 5 s | Installs a missing app, or updates one older than the plugin (below), unless a compatible host app provides the socket. |
 
 ## App install and updates (bootstrap)
 
@@ -58,6 +59,55 @@ is not a failure: it means the release is still being built, so the bootstrap
 keeps the current app, sets no marker and tries again at the next session.
 `UNIBROW_NO_AUTO_UPDATE` and `UNIBROW_NO_AUTO_INSTALL` opt out.
 
+## Compatible host apps
+
+Another app may serve the Unibrow socket instead of `Unibrow.app`: a
+*compatible host app* that speaks the wire protocol below and links the relay
+path itself. The plugin then must not install, update or start `Unibrow.app`
+on top of it. A host app announces itself with a marker file:
+
+```
+~/Library/Application Support/cc-unibrow/host.json
+{"version": 1, "appPath": "/Applications/Example.app", "bundleID": "com.example.host"}
+```
+
+| Field | Meaning |
+|---|---|
+| `version` | Marker format, `1`. Readers ignore fields they do not know. |
+| `appPath` | Absolute path of the host app's bundle, ending in `.app`. |
+| `bundleID` | The `CFBundleIdentifier` of that bundle. |
+
+`plugin/bin/unibrow-host` decides whether the marker counts. It counts only if
+all of this holds; otherwise it is ignored as if it were absent:
+
+- `host.json` is a regular file (not a symlink) owned by the user, at most
+  4 KB, valid JSON with both `appPath` and `bundleID` strings;
+- `cc-unibrow/` is a directory (not a symlink) owned by the user, and neither
+  it nor the marker is writable by group or others (`0700` and `0600`
+  recommended);
+- `appPath` is absolute, ends in `.app` and exists, and its `Info.plist` has
+  exactly `bundleID`;
+- `bundleID` is not Unibrow's own (`dev.andriitk.unibrow`), so a marker can
+  never be used to stop Unibrow's updates.
+
+While the marker counts, the `SessionStart` shim exits silently (no install,
+no update, no message), and `unibrow-bootstrap` exits 0 without a failure
+marker; it checks once at start and again right before it writes anything.
+The marker is not signed: anything that can write it already runs as the
+user. Nothing in Unibrow writes or deletes it.
+
+**Uninstall path.** Deleting the host app is enough. Its marker then names an
+app that is gone, so it no longer counts, and the next `SessionStart`
+installs `Unibrow.app` again (or says how, with `UNIBROW_NO_AUTO_INSTALL`).
+A host app may delete its marker when it is uninstalled, but does not have
+to. `scripts/test-host-marker.sh` (run in CI, in a throwaway `HOME`) covers
+valid, stale, mismatched and forged markers.
+
+Host app duties: write the marker atomically (temp file, then rename) with
+mode `0600`; create `cc-unibrow/` with mode `0700` if missing; serve the
+socket under the rules of [Safety guarantees](#safety-guarantees) (peer UID
+check, fail open); and accept every wire version from 1 to its own.
+
 Releases come from `main`. Merging a pull request that changes `VERSION` runs
 the release workflow: it checks that `VERSION`, `plugin.json` and the
 `CHANGELOG.md` section agree, tests, builds the universal app, tags the
@@ -77,14 +127,32 @@ hook ◀──DecisionMessage── app      PermissionRequest, Elicitation
 ```
 
 `HookMessage` carries the raw hook payload untouched, so fields Claude Code adds
-later survive, plus `branch`, `projectRoot` and `ancestorPIDs` gathered by the
-relay. `DecisionMessage` is one of `allow`, `allowAlways` (forwards Claude Code's
+later survive (including `agent_id` and `agent_type`, set when a hook fires
+inside a subagent), plus `branch`, `projectRoot` and `ancestorPIDs` gathered
+by the relay. `DecisionMessage` is one of `allow`, `allowAlways` (forwards Claude Code's
 own `permission_suggestions` as `updatedPermissions`), `allowWithInput` (question
 answers), `deny` (with `interrupt`), `elicitation` (`action` accept, decline
 or cancel, with `content` for a form) and `passthrough`. The relay prints a
 decision only for the event it belongs to; anything else prints nothing. For
 an `Elicitation` the relay also sends `propertyOrder`, the form's property
 names read from the raw input, because decoded JSON objects lose their order.
+
+### Versions
+
+Every message carries `version`, the sender's wire version
+(`WireProtocol.version`). The relay sends the current one.
+
+| Version | Changes |
+|---|---|
+| 1 | The original protocol: `HookMessage` (`version`, `event`, `payload`, optional `branch`, `projectRoot`, `ancestorPIDs`, `propertyOrder`) and `DecisionMessage` (`version`, `decision`). Events `PermissionRequest`, `Elicitation`, `PostToolUse`, `PostToolUseFailure`, `PermissionDenied`, `UserPromptSubmit`, `Stop`, `SessionEnd`, `StopFailure`, `Notification`. |
+| 2 | Adds the events `SubagentStart` and `SubagentStop`. The message shape is unchanged. |
+
+A message without `version` is read as version 1. The app accepts versions 1
+to its own (`WireProtocol.supportedVersions`) and closes the connection on
+anything else or on an event it does not know, so the relay prints nothing
+and Claude Code asks in the terminal. Bump the version when a message can
+carry something an older reader would not understand; new optional fields
+that an older reader may safely ignore do not need a bump.
 
 ## MCP elicitations
 

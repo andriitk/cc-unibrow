@@ -40,3 +40,5 @@ jobs:
         run: sh scripts/test-bootstrap.sh
       - name: Hook shim reads its input without the app
         run: sh scripts/test-shim.sh
+      - name: Bootstrap and shim defer to a compatible host app
+        run: sh scripts/test-host-marker.sh

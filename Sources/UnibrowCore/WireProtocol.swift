@@ -14,8 +14,22 @@ public import Foundation
 /// answers. If the app closes the connection without answering, or is not
 /// running at all, the hook prints nothing and Claude Code falls back to its
 /// regular terminal prompt.
+///
+/// Every message carries `version`, the wire version of its sender:
+///
+/// - 1: the original protocol. Events `PermissionRequest`, `Elicitation`,
+///   `PostToolUse`, `PostToolUseFailure`, `PermissionDenied`,
+///   `UserPromptSubmit`, `Stop`, `SessionEnd`, `StopFailure`, `Notification`.
+/// - 2: adds the events `SubagentStart` and `SubagentStop`. The message shape
+///   is unchanged; `agent_id` and `agent_type` travel in `payload` as Claude
+///   Code wrote them.
+///
+/// A message without `version` is read as version 1. A receiver accepts every
+/// version in `supportedVersions` and drops anything newer (the relay then
+/// falls back to the terminal).
 public enum WireProtocol {
-    public static let version = 1
+    public static let version = 2
+    public static let supportedVersions = 1...version
     public static let delimiter = UInt8(ascii: "\n")
 
     public static func frame(_ message: some Encodable) throws -> Data {
@@ -68,6 +82,57 @@ public struct HookMessage: Sendable, Codable, Hashable {
         self.ancestorPIDs = ancestorPIDs
         self.propertyOrder = propertyOrder
     }
+
+    /// Whether this app understands the message's wire version.
+    public var isSupported: Bool { WireProtocol.supportedVersions.contains(version) }
+
+    private enum CodingKeys: String, CodingKey {
+        case version, event, payload, branch, projectRoot, ancestorPIDs, propertyOrder
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        // Messages from before the field existed are version 1.
+        version = try container.decodeIfPresent(Int.self, forKey: .version) ?? 1
+        event = try container.decode(HookEvent.self, forKey: .event)
+        payload = try container.decode(JSONValue.self, forKey: .payload)
+        branch = try container.decodeIfPresent(String.self, forKey: .branch)
+        projectRoot = try container.decodeIfPresent(String.self, forKey: .projectRoot)
+        ancestorPIDs = try container.decodeIfPresent([Int32].self, forKey: .ancestorPIDs)
+        propertyOrder = try container.decodeIfPresent([String].self, forKey: .propertyOrder)
+    }
+
+    /// What the relay sends for one hook invocation: the hook's raw `input`
+    /// untouched (so `agent_id`, `agent_type` and fields Claude Code adds later
+    /// reach the app), plus the session details the event needs. `nil` when
+    /// the input is not a JSON object or the event is not one Unibrow handles.
+    ///
+    /// - Parameters:
+    ///   - eventName: the hook's argument; falls back to `hook_event_name`.
+    ///   - repository: looks up the git repository of the session's `cwd`.
+    ///   - ancestors: the relay's process ancestry, nearest first.
+    public static func relayed(
+        input: Data,
+        eventName: String?,
+        repository: (String) -> GitBranch.Repository?,
+        ancestors: () -> [Int32]
+    ) -> HookMessage? {
+        guard let payload = try? HookPayload(data: input),
+              let event = HookEvent(rawValue: eventName ?? payload.hookEventName ?? "")
+        else { return nil }
+        let details = event.needsSessionDetails
+        let repo = details ? payload.cwd.flatMap(repository) : nil
+        return HookMessage(
+            event: event,
+            payload: payload.raw,
+            branch: repo?.branch,
+            projectRoot: repo?.root,
+            ancestorPIDs: details ? ancestors() : nil,
+            propertyOrder: event == .elicitation
+                ? JSONKeyOrder.keys(in: input, at: ["requested_schema", "properties"])
+                : nil
+        )
+    }
 }
 
 /// The app's answer to a permission request or an MCP elicitation.
@@ -78,6 +143,14 @@ public struct DecisionMessage: Sendable, Codable, Hashable {
     public init(decision: Decision, version: Int = WireProtocol.version) {
         self.version = version
         self.decision = decision
+    }
+
+    private enum CodingKeys: String, CodingKey { case version, decision }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        version = try container.decodeIfPresent(Int.self, forKey: .version) ?? 1
+        decision = try container.decode(Decision.self, forKey: .decision)
     }
 }
 

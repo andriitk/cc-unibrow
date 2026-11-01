@@ -8,7 +8,8 @@
 # Downloads Unibrow.zip of exactly that release from GitHub, checks its
 # SHA-256, code signature, bundle ID and version, then installs it to
 # ~/Applications (never over an existing app) or replaces the older app in
-# place. Everything is logged to ~/Library/Logs/cc-unibrow-bootstrap.log.
+# place. Does nothing while a compatible host app provides the socket (see
+# unibrow-host). Everything is logged to ~/Library/Logs/cc-unibrow-bootstrap.log.
 set -eu
 
 usage="usage: unibrow-bootstrap <version> [--update <path/to/Unibrow.app>]"
@@ -33,6 +34,15 @@ older_than() {
 }
 
 mkdir -p "$support"
+
+# A compatible host app provides the socket instead of Unibrow.app: never
+# install, update or start Unibrow.app then. Checked again right before
+# anything is written, in case the host app appeared during the download.
+host_app() { sh "$(dirname "$0")/unibrow-host" 2>/dev/null; }
+if host=$(host_app); then
+    log "A compatible host app provides the socket ($host); leaving Unibrow alone"
+    exit 0
+fi
 
 # Only ever replace a Unibrow app, and only one older than this release.
 if [ -n "$target" ]; then
@@ -108,6 +118,11 @@ if [ "$(plist "$app" CFBundleIdentifier || true)" != "$bundle_id" ] ||
     [ "$(plist "$app" CFBundleShortVersionString || true)" != "$version" ]; then
     log "The downloaded app is not Unibrow ${version}; not installing"
     exit 1
+fi
+
+if host=$(host_app); then
+    log "A compatible host app provides the socket ($host); leaving Unibrow alone"
+    exit 0
 fi
 
 if [ -z "$target" ]; then

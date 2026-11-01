@@ -118,7 +118,8 @@ public struct FinishedSessions: Sendable, Equatable {
         switch event {
         case .userPromptSubmit, .permissionRequest, .elicitation, .stopFailure, .sessionEnd:
             remove(sessionID: sessionID)
-        case .postToolUse, .postToolUseFailure, .permissionDenied, .stop, .notification:
+        case .postToolUse, .postToolUseFailure, .permissionDenied, .stop, .notification,
+             .subagentStart, .subagentStop:
             break
         }
     }

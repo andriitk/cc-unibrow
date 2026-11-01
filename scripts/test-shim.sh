@@ -10,7 +10,7 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 home=$(mktemp -d "${TMPDIR:-/tmp}/unibrow-shim-test.XXXXXX")
 trap 'rm -rf "$home"' EXIT
 
-for event in PermissionRequest Elicitation PostToolUse StopFailure Notification; do
+for event in PermissionRequest Elicitation PostToolUse StopFailure Notification SubagentStart SubagentStop; do
     # 4 MB is far more than a pipe buffer: a shim that exits without reading
     # makes the writer fail with SIGPIPE.
     status=$( { { head -c 4194304 /dev/zero; echo "$?" >"$home/writer"; } \

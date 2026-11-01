@@ -154,6 +154,11 @@ public struct ApprovalQueue: Sendable, Equatable {
         case .permissionRequest, .elicitation, .notification:
             return []
 
+        case .subagentStart, .subagentStop:
+            // A subagent ending is not the turn ending: the main agent, or
+            // another subagent, may still wait for an answer.
+            return []
+
         case .postToolUse, .postToolUseFailure, .permissionDenied:
             // The tool ran, failed or was denied, so its prompt was answered.
             // `PermissionRequest` has no `tool_use_id`, so match the oldest
