@@ -79,16 +79,24 @@ public enum RiskyCommand: Sendable, Equatable {
     /// none or the line cannot be read reliably.
     ///
     /// - Parameters:
-    ///   - cwd: the session's working directory; `cd` in the line moves it.
+    ///   - cwd: the session's working directory; `cd` in the line moves it
+    ///     only where the shell certainly would (see `Lists`).
     ///   - home: expands `~` and `$HOME`.
     public static func recognize(in command: String, cwd: String?, home: String) -> [RiskyCommand] {
         guard let commands = ShellWords.parse(command, home: home) else { return [] }
         var directory = cwd.flatMap { $0.hasPrefix("/") ? $0 : nil }
         var exported: [String: ShellWords.Word] = [:]
+        // Variables whose value at a later command depends on what ran.
+        var unknownVariables: Set<String> = []
+        var lists = Lists()
         var found: [RiskyCommand] = []
 
         for command in commands {
-            var words = command[...]
+            defer {
+                // A `cd` holds only while its `&&` chain goes on.
+                if lists.end(command.separator) { directory = nil }
+            }
+            var words = command.words[...]
             var environment = exported
             // `NAME=value cmd`
             while let first = words.first, let (name, value) = assignment(first) {
@@ -96,27 +104,49 @@ public enum RiskyCommand: Sendable, Equatable {
                 words = words.dropFirst()
             }
             guard let program = unwrap(&words, environment: &environment), program.isLiteral else {
-                // An assignment alone is fine. A wrapper with options or a
-                // command name that depends on the shell might be a `cd`,
-                // so later commands have no known directory.
-                if !words.isEmpty { directory = nil }
+                if words.isEmpty {
+                    // `NAME=value` alone changes the variable for later
+                    // commands only if it was exported before; unknown.
+                    unknownVariables.formUnion(command.words.compactMap { assignment($0)?.0 })
+                } else {
+                    // A wrapper with options or a command name that depends
+                    // on the shell might be a `cd`: later directories unknown.
+                    directory = nil
+                }
                 continue
             }
             let arguments = Array(words.dropFirst())
 
             switch program.text {
             case "cd", "pushd":
-                directory = changeDirectory(arguments, from: directory, home: home)
-            case "export":
+                // `pushd` alone swaps with the stack; `cd` alone goes home.
+                let moved = program.text == "pushd" && arguments.isEmpty
+                    ? nil : changeDirectory(arguments, from: directory, home: home)
+                directory = lists.carriesDirectoryChange(command.separator) ? moved : nil
+                if directory != nil { lists.directoryChanged() }
+            case "popd":
+                directory = nil
+            case "export", "unset":
                 for argument in arguments {
-                    if let (name, value) = assignment(argument) { exported[name] = value }
+                    let (name, value) = assignment(argument) ?? (argument.text, nil)
+                    if program.text == "export", let value, lists.runsUnconditionally(command.separator) {
+                        exported[name] = value
+                        unknownVariables.remove(name)
+                    } else {
+                        exported[name] = nil
+                        unknownVariables.insert(name)
+                    }
                 }
             case "git":
                 if let risky = git(arguments, directory: directory) { found.append(risky) }
             case "rm":
                 if let risky = remove(arguments, directory: directory) { found.append(.remove(risky)) }
             case "gh":
-                if let risky = github(arguments, environment: environment, directory: directory) {
+                // Without knowing which token or repository gh gets, say nothing.
+                let unknown = ["GH_TOKEN", "GITHUB_TOKEN", "GH_REPO"].contains {
+                    unknownVariables.contains($0) && environment[$0] == nil
+                }
+                if !unknown, let risky = github(arguments, environment: environment, directory: directory) {
                     found.append(.github(risky))
                 }
             default:
@@ -124,6 +154,62 @@ public enum RiskyCommand: Sendable, Equatable {
             }
         }
         return found
+    }
+
+    /// Where the reader is in the shell's and-or lists and pipelines, to
+    /// decide whether a `cd` certainly moved the shell for later commands.
+    ///
+    /// Bash runs `a && b` as one list: `b` runs only if `a` succeeded. So in
+    /// `cd x && rm -rf a`, `rm` runs in `x` or not at all. Anything else is
+    /// uncertain or wrong:
+    /// - `cd x; rm …`, `cd x || rm …`: rm also runs when `cd` failed, in
+    ///   the old folder;
+    /// - `cd x | …`, `… | cd x`, `cd x & …`: a pipeline element or a
+    ///   background list runs in a subshell, so the shell does not move;
+    /// - `a || cd x && rm …`: `cd` may have been skipped while `rm` runs.
+    /// - `cd x && rm -rf a; rm -rf b`: `b` runs whether or not `cd`
+    ///   succeeded, so it is in `x` only if `cd` worked. Not knowing which,
+    ///   its folder is unknown.
+    struct Lists {
+        /// The separator before the current command.
+        private var previous: ShellWords.Command.Separator = .sequence
+        /// An `||` earlier in the current list.
+        private var hasOr = false
+        /// The directory comes from a `cd` in the current `&&` chain.
+        private var changedInChain = false
+
+        /// The current command is the first of its list, not in a pipeline,
+        /// not in the background: it runs whatever came before.
+        func runsUnconditionally(_ separator: ShellWords.Command.Separator) -> Bool {
+            (previous == .sequence || previous == .background)
+                && separator != .pipe && separator != .background
+        }
+
+        /// A `cd` ending in `separator` moved the shell for what follows only
+        /// if `&&` follows, it is not in a pipeline, and no `||` before it
+        /// could have skipped it.
+        func carriesDirectoryChange(_ separator: ShellWords.Command.Separator) -> Bool {
+            separator == .and && previous != .pipe && !hasOr
+        }
+
+        mutating func directoryChanged() { changedInChain = true }
+
+        /// Moves past a command. Returns whether a directory from a `cd` in
+        /// the chain stops being certain here.
+        mutating func end(_ separator: ShellWords.Command.Separator) -> Bool {
+            defer { previous = separator }
+            switch separator {
+            case .and, .pipe:
+                return false
+            case .or:
+                hasOr = true
+            case .sequence, .background, .end:
+                hasOr = false
+            }
+            let wasChanged = changedInChain
+            changedInChain = false
+            return wasChanged
+        }
     }
 
     // MARK: - Shell helpers

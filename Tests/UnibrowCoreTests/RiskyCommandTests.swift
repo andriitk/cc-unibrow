@@ -27,14 +27,19 @@ struct RiskyCommandTests {
     func words() throws {
         let commands = try #require(ShellWords.parse(#"git commit -m "a b" 'c d' e\ f ~/x "$HOME"/y 2>/dev/null > out.txt"#, home: Self.home))
         #expect(commands.count == 1)
-        #expect(commands[0].map(\.text) == ["git", "commit", "-m", "a b", "c d", "e f", "/Users/me/x", "/Users/me/y"])
-        #expect(commands[0].allSatisfy { $0.isLiteral })
+        #expect(commands[0].words.map(\.text) == ["git", "commit", "-m", "a b", "c d", "e f", "/Users/me/x", "/Users/me/y"])
+        #expect(commands[0].words.allSatisfy { $0.isLiteral })
+        #expect(commands[0].separator == .end)
     }
 
-    @Test("Chains split into commands", arguments: ["a && b", "a; b", "a || b", "a | b", "a & b", "a\nb", "a |& b"])
-    func chains(line: String) throws {
+    @Test("Chains split into commands, each with the operator after it", arguments: [
+        ("a && b", ShellWords.Command.Separator.and), ("a; b", .sequence), ("a || b", .or), ("a | b", .pipe),
+        ("a & b", .background), ("a\nb", .sequence), ("a |& b", .pipe), ("a &&\nb", .and),
+    ])
+    func chains(line: String, separator: ShellWords.Command.Separator) throws {
         let commands = try #require(ShellWords.parse(line, home: Self.home))
-        #expect(commands.map { $0.map(\.text) } == [["a"], ["b"]])
+        #expect(commands.map { $0.words.map(\.text) } == [["a"], ["b"]])
+        #expect(commands.map(\.separator) == [separator, .end])
     }
 
     @Test("Words the shell would change are not literal", arguments: [
@@ -42,7 +47,7 @@ struct RiskyCommandTests {
     ])
     func nonLiteral(line: String) throws {
         let commands = try #require(ShellWords.parse(line, home: Self.home))
-        #expect(commands[0].last?.isLiteral == false)
+        #expect(commands[0].words.last?.isLiteral == false)
     }
 
     @Test("Constructs the reader does not follow make it give up", arguments: [
@@ -99,6 +104,57 @@ struct RiskyCommandTests {
 
         let absolute = try #require(Self.push("git -C /srv/app push -f"))
         #expect(absolute.directory == "/srv/app")
+    }
+
+    @Test("cd moves later commands only where bash certainly would", arguments: [
+        // Followed by &&: what follows runs in the new folder or not at all.
+        ("cd sub && rm -rf build", ["/Users/me/code/shop/sub/build"]),
+        ("cd sub && cd deeper && rm -rf build", ["/Users/me/code/shop/sub/deeper/build"]),
+        ("cd sub && ls | rm -rf build", ["/Users/me/code/shop/sub/build"]),
+        // cd may have failed, and rm runs anyway in the old folder.
+        ("cd /missing; rm -rf build", nil),
+        ("cd /missing\nrm -rf build", nil),
+        ("cd sub || rm -rf build", nil),
+        // A pipeline element or a background job runs in a subshell.
+        ("cd sub | rm -rf build", nil),
+        ("ls | cd sub && rm -rf build", nil),
+        ("cd sub & rm -rf build", nil),
+        // An || before the cd may have skipped it.
+        ("false || cd sub && rm -rf build", nil),
+        // The directory stack is not followed.
+        ("pushd sub && popd && rm -rf build", nil),
+        ("pushd && rm -rf build", nil),
+        // Absolute targets do not depend on the folder.
+        ("cd /missing; rm -rf /tmp/x", ["/tmp/x"]),
+    ] as [(String, [String]?)])
+    func directoryAcrossSeparators(line: String, expected: [String]?) {
+        #expect(Self.targets(line) == expected)
+    }
+
+    @Test("After the && chain of a cd ends, the folder is unknown")
+    func directoryAfterChain() {
+        // bash: `rm -rf a` runs only if `cd sub` worked, so in sub. `rm -rf b`
+        // runs either way: in sub if cd worked, in the old folder if not.
+        // Which one is not known in advance, so b gets no target.
+        let found = Self.recognize("cd sub && rm -rf a; rm -rf b")
+        #expect(found == [.remove(.init(targets: ["/Users/me/code/shop/sub/a"]))])
+        // Without a cd, a ; keeps the session folder.
+        #expect(Self.recognize("rm -rf a; rm -rf b").count == 2)
+        #expect(Self.recognize("cd sub && rm -rf a || rm -rf b").count == 1)
+    }
+
+    @Test("gh is skipped when the token may or may not have been exported")
+    func uncertainExports() {
+        let login = "export GH_TOKEN=$(gh auth token -u me)"
+        guard case .github(let github)? = Self.recognize("\(login); gh pr merge").first else {
+            Issue.record("unconditional export not followed")
+            return
+        }
+        #expect(github.account == .login("me"))
+        #expect(Self.recognize("test -n x && \(login); gh pr merge").isEmpty)
+        #expect(Self.recognize("\(login) & gh pr merge").isEmpty)
+        #expect(Self.recognize("GH_TOKEN=$(gh auth token -u me); gh pr merge").isEmpty)
+        #expect(Self.recognize("\(login); unset GH_TOKEN; gh pr merge").isEmpty)
     }
 
     @Test("A push whose directory is unknown is skipped")

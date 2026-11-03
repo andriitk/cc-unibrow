@@ -26,9 +26,26 @@ public enum ShellWords {
         }
     }
 
+    /// One simple command and the operator that ends it, which decides
+    /// whether a `cd` in it still holds for the next command.
+    public struct Command: Sendable, Equatable {
+        public enum Separator: Sendable, Equatable {
+            /// `&&`, `||`, `|` (and `|&`), `;` or a newline, `&`, end of line.
+            case and, or, pipe, sequence, background, end
+        }
+
+        public var words: [Word]
+        public var separator: Separator
+
+        public init(_ words: [Word], _ separator: Separator) {
+            self.words = words
+            self.separator = separator
+        }
+    }
+
     /// Simple commands in order, redirections removed. `nil` when the line
     /// has a construct this reader does not follow.
-    public static func parse(_ line: String, home: String) -> [[Word]]? {
+    public static func parse(_ line: String, home: String) -> [Command]? {
         var reader = Reader(scalars: Array(line.unicodeScalars), home: home)
         guard let commands = reader.read() else { return nil }
         // Control structures and groups change what runs and where; skip them.
@@ -36,10 +53,12 @@ public enum ShellWords {
             "if", "then", "else", "elif", "fi", "for", "while", "until", "do", "done",
             "case", "esac", "select", "function", "{", "}", "[[", "]]", "!", "coproc",
         ]
-        for command in commands where command.first.map({ keywords.contains($0.raw) }) == true {
+        for command in commands where command.words.first.map({ keywords.contains($0.raw) }) == true {
             return nil
         }
-        return commands.filter { !$0.isEmpty }
+        // An empty command (`a &&` + newline + `b`) carries nothing; the
+        // operator before it stays with the command before it.
+        return commands.filter { !$0.words.isEmpty }
     }
 
     /// Longest command line read; anything longer is not analysed.
@@ -50,7 +69,7 @@ public enum ShellWords {
         let home: String
         var index = 0
 
-        var commands: [[Word]] = []
+        var commands: [Command] = []
         var words: [Word] = []
         var text = String.UnicodeScalarView()
         var raw = String.UnicodeScalarView()
@@ -68,7 +87,7 @@ public enum ShellWords {
             index + offset < scalars.count ? scalars[index + offset] : nil
         }
 
-        mutating func read() -> [[Word]]? {
+        mutating func read() -> [Command]? {
             guard scalars.count <= ShellWords.maxLength else { return nil }
             while let scalar = peek() {
                 switch scalar {
@@ -76,7 +95,7 @@ public enum ShellWords {
                     endWord()
                     index += 1
                 case "\n", ";":
-                    endCommand()
+                    endCommand(.sequence)
                     index += 1
                 case "&":
                     if peek(1) == ">" {
@@ -85,11 +104,11 @@ public enum ShellWords {
                         index += peek(2) == ">" ? 3 : 2
                         dropNextWord = true
                     } else {
-                        endCommand()
+                        endCommand(peek(1) == "&" ? .and : .background)
                         index += peek(1) == "&" ? 2 : 1
                     }
                 case "|":
-                    endCommand()
+                    endCommand(peek(1) == "|" ? .or : .pipe)
                     index += (peek(1) == "|" || peek(1) == "&") ? 2 : 1
                 case "(", ")":
                     // A subshell or a function definition.
@@ -164,7 +183,7 @@ public enum ShellWords {
                     index += 1
                 }
             }
-            endCommand()
+            endCommand(.end)
             return commands
         }
 
@@ -308,10 +327,10 @@ public enum ShellWords {
             resetWord()
         }
 
-        mutating func endCommand() {
+        mutating func endCommand(_ separator: Command.Separator) {
             endWord()
             dropNextWord = false
-            commands.append(words)
+            commands.append(Command(words, separator))
             words = []
         }
     }
