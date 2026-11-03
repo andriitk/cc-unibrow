@@ -1,6 +1,6 @@
 # Privacy policy
 
-_Last updated: 2026-10-21_
+_Last updated: 2026-11-03_
 
 Unibrow (the macOS app and the `cc-unibrow` Claude Code plugin) is built to keep
 everything on your Mac.
@@ -22,6 +22,12 @@ no analytics, no telemetry and no crash reporting.
   you submit, which go back to Claude Code only. **Alerts**: the API error
   type and message when a turn fails, and the text of an "agent needs input"
   notification. None of it is logged or written to disk.
+- **Impact lines** for risky shell commands: the hook looks up, on your Mac
+  and read-only, the git remote (host and repository path only, never user
+  names or tokens), branches, how many commits or changed files are involved,
+  and how many items a folder to be removed holds. Only the resulting short
+  lines go to the app with the request. **Subagents**: their IDs and types,
+  to show how many are running.
 - **Process IDs and window titles**, used only to find and raise the window a
   session runs in. Window titles are read only if you turn on *Exact Window
   Focus* and grant Accessibility access.
@@ -29,7 +35,8 @@ no analytics, no telemetry and no crash reporting.
 ## Retention
 
 Requests live in the app’s memory until they are answered, or for at most one
-hour. “Finished” notices are kept in memory for at most 30 minutes. Nothing
+hour. Running-subagent entries are dropped when the agent or session ends, or
+after six hours without news from them. “Finished” notices are kept in memory for at most 30 minutes. Nothing
 from your sessions is written to disk. Quitting the app clears everything.
 
 The app stores only its own settings (macOS user defaults) and, for the

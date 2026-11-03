@@ -28,12 +28,30 @@ All notable changes to this project are documented here. The format follows
   brings Unibrow back at the next session. Contract in
   `docs/ARCHITECTURE.md`.
 - `SubagentStart` and `SubagentStop` hooks: the relay passes them, with
-  `agent_id` and `agent_type`, to the app, which ignores them for now.
+  `agent_id` and `agent_type`, to the app.
+- An **Impact** line on permission cards for risky shell commands: a force
+  push shows the remote's host and repository, the branch and how many
+  commits on the remote would be overwritten (as of the last fetch);
+  `git reset --hard`, `git checkout -- .`, `git restore` and `git clean -f`
+  show how many files would be lost; `rm -r` shows each target's real path,
+  whether it exists, how many items it holds (up to 10,000) and whether it is
+  outside the project, the home folder or a top-level folder; `gh pr
+  create|merge`, `gh repo delete|archive`, `gh release create|delete` and
+  `gh api -X DELETE` show the account and repository. Read-only lookups,
+  at most 0.3 s; an unclear command gets no line. Allow is unaffected.
+- Cards, alerts and finished notices show how many subagents are running in
+  that session ("2 agents", types on hover), without pulsing or opening the
+  notch.
+- README and SECURITY.md: other plugins' hooks and Claude Code mods can
+  answer a permission request before or instead of Unibrow; mods run
+  unsandboxed with your permissions.
 
 ### Changed
 
 - The relay protocol is at version 2 (adds the subagent events). The app
   accepts versions 1 and 2, and reads a message without a version as 1.
+  The impact note travels as a new optional `impact` field, so it needs no
+  new version.
 
 ### Security
 
