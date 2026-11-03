@@ -74,6 +74,12 @@ All notable changes to this project are documented here. The format follows
   non-ASCII characters are flagged; the detail then shows the full input.
   MCP arguments are shown as JSON values (`repo: "a/b"`).
 
+### Fixed
+
+- `make install` no longer stops before launching the app when macOS has no
+  Accessibility grant to reset (for example on the first install, or after
+  the app was removed).
+
 ## [0.2.5] - 2026-10-22
 
 ### Added

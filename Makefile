@@ -21,9 +21,11 @@ install: app
 	@# An ad-hoc signed build is a "new app" to macOS, so an old Accessibility
 	@# grant would show as ON in System Settings while doing nothing. Clear it
 	@# so the settings tell the truth; re-enable it from the Unibrow menu.
+	@# Nothing to reset (no grant recorded yet) is not an error.
 	@if [ -z "$(CODESIGN_IDENTITY)" ]; then \
-		tccutil reset Accessibility dev.andriitk.unibrow >/dev/null 2>&1 && \
-		echo "Note: re-enable Exact Window Focus from the Unibrow menu (Accessibility was reset for this build)."; \
+		if tccutil reset Accessibility dev.andriitk.unibrow >/dev/null 2>&1; then \
+			echo "Note: re-enable Exact Window Focus from the Unibrow menu (Accessibility was reset for this build)."; \
+		fi; \
 	fi
 	open "$(APP_DIR)/Unibrow.app"
 	@echo "Installed to $(APP_DIR)/Unibrow.app"
