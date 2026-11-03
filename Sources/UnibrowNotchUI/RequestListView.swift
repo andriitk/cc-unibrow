@@ -63,34 +63,35 @@ struct RequestListView: View {
 
     @ViewBuilder
     private func card(for request: PendingRequest) -> some View {
+        let actions = CardActions(host: model, request: request)
         let context = RequestContext(
             request: request,
-            runningAgents: model.subagents.badge(sessionID: request.sessionID)
-        ) {
-            model.bringToFront(request)
-        }
-        if let elicitation = request.elicitation {
+            runningAgents: model.subagents.badge(sessionID: request.sessionID),
+            bringToFront: actions.bringToFront
+        )
+        switch CardKind(request) {
+        case .elicitation(let elicitation):
             ElicitationCard(
                 context: context,
                 elicitation: elicitation,
-                onAnswer: { model.answerElicitation(request, $0) },
-                onOpenLink: { model.openElicitationLink(request) },
-                onSendToTerminal: { model.sendToTerminal(request) }
+                onAnswer: actions.answerElicitation,
+                onOpenLink: actions.openLink,
+                onSendToTerminal: actions.sendToTerminal
             )
             // Fresh form state for every request.
             .id(request.id)
-        } else if request.isQuestion, let questions = UserQuestion.parse(request.toolInput) {
+        case .question(let questions):
             QuestionCard(
                 context: context,
                 questions: questions,
-                onSubmit: { model.answer(request, with: $0) },
-                onSendToTerminal: { model.sendToTerminal(request) }
+                onSubmit: actions.answer,
+                onSendToTerminal: actions.sendToTerminal
             )
-        } else {
+        case .permission:
             RequestCard(
                 context: context,
-                onDecide: { model.decide(request, $0) },
-                onSendToTerminal: { model.sendToTerminal(request) }
+                onDecide: actions.decide,
+                onSendToTerminal: actions.sendToTerminal
             )
             // A fresh card (and review state) for every request.
             .id(request.id)

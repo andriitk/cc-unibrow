@@ -48,6 +48,11 @@ let package = Package(
             dependencies: ["UnibrowCore"],
             swiftSettings: strictSettings
         ),
+        .testTarget(
+            name: "UnibrowNotchUITests",
+            dependencies: ["UnibrowNotchUI", "UnibrowCore"],
+            swiftSettings: strictSettings
+        ),
     ],
     swiftLanguageModes: [.v6]
 )
