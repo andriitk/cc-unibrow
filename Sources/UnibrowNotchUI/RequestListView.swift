@@ -4,7 +4,7 @@ import UnibrowCore
 
 /// Scrollable list of pending requests, grouped by project.
 struct RequestListView: View {
-    let model: AppModel
+    let model: any NotchHost
 
     @State private var contentHeight: CGFloat = 0
     private static let maxHeight: CGFloat = 460
@@ -158,7 +158,7 @@ private struct WindowFocusHint: View {
 /// Sessions that finished their turn. Deliberately quieter than request cards:
 /// no buttons to decide, just "done" with a way to jump there.
 private struct FinishedSection: View {
-    let model: AppModel
+    let model: any NotchHost
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -170,7 +170,7 @@ private struct FinishedSection: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.white.opacity(0.35))
                 Spacer(minLength: 0)
-                Button("Clear", action: model.clearFinished)
+                Button("Clear") { model.clearFinished() }
                     .buttonStyle(.pill(.quiet))
                     .help("Dismiss all finished sessions")
             }

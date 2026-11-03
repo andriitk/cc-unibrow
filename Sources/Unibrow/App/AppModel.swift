@@ -2,16 +2,13 @@ import AppKit
 import Observation
 import os
 import UnibrowCore
+import UnibrowNotchUI
 
 /// The app's single source of truth: pending requests, user settings and the
 /// bridge between the socket server and the UI.
 @MainActor
 @Observable
-final class AppModel {
-    enum Choice {
-        case allow, allowAlways, deny
-    }
-
+final class AppModel: NotchHost {
     private(set) var queue = ApprovalQueue()
     private(set) var serverError: String?
     private(set) var hookStatus: HookLinker.Status = .relayMissing
@@ -31,16 +28,7 @@ final class AppModel {
 
     /// What briefly peeks out of the notch: a new request, an alert, or a
     /// session that just finished.
-    enum Peek: Equatable {
-        case request(PendingRequest)
-        case alert(SessionAlert)
-        case finished(FinishedSession)
-    }
-
-    /// Whether the island has anything to show.
-    var hasContent: Bool { !queue.isEmpty || !alerts.isEmpty || !finished.isEmpty }
-
-    private(set) var peek: Peek?
+    private(set) var peek: NotchPeek?
 
     /// While paused, Unibrow steps aside: every request and elicitation goes
     /// straight to the terminal prompt and nothing shows in the notch, alerts
@@ -186,7 +174,7 @@ final class AppModel {
         if pluginStatus != .installed { pluginStatus = .installed }
     }
 
-    func decide(_ request: PendingRequest, _ choice: Choice) {
+    func decide(_ request: PendingRequest, _ choice: PermissionChoice) {
         guard queue.remove(id: request.id) != nil else { return }
         clearPeek(ifShowing: request)
 
@@ -476,7 +464,7 @@ final class AppModel {
 
     // MARK: - Peek
 
-    private func showPeek(_ newPeek: Peek) {
+    private func showPeek(_ newPeek: NotchPeek) {
         // A finished notice never covers a request or an alert that is still
         // peeking, and an alert never covers a request.
         switch (newPeek, peek) {

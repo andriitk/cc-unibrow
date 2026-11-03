@@ -1,4 +1,4 @@
-import SwiftUI
+public import SwiftUI
 import UnibrowCore
 
 /// Coordinate space of the panel canvas, used to report the island frame.
@@ -6,9 +6,18 @@ private let canvasSpace = "unibrow.canvas"
 
 /// The whole island: grows out of the notch, shows a pending count, peeks at
 /// new requests and expands into the request list on hover.
-struct NotchRootView: View {
-    let model: AppModel
+///
+/// The host puts it in a panel at the top of the screen, keeps `island`
+/// current (notch size, hover) and sets `\.beginTyping` so text fields can
+/// take the keyboard.
+public struct NotchRootView: View {
+    let model: any NotchHost
     let island: IslandState
+
+    public init(model: any NotchHost, island: IslandState) {
+        self.model = model
+        self.island = island
+    }
 
     private enum Mode: Equatable {
         case hidden, compact, peek, expanded
@@ -41,7 +50,7 @@ struct NotchRootView: View {
         }
     }
 
-    var body: some View {
+    public var body: some View {
         island(content)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .coordinateSpace(.named(canvasSpace))
