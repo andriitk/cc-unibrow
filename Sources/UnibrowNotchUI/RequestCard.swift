@@ -5,7 +5,7 @@ import UnibrowCore
 /// One pending permission request: what Claude wants to do, and the answers.
 struct RequestCard: View {
     let context: RequestContext
-    let onDecide: (AppModel.Choice) -> Void
+    let onDecide: (PermissionChoice) -> Void
     let onSendToTerminal: () -> Void
 
     @State private var isShowingDetail = false

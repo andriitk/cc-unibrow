@@ -6,7 +6,7 @@ import UnibrowCore
 /// stopped on an API error, or a background agent waiting for input. A click
 /// opens the session's window.
 struct AlertSection: View {
-    let model: AppModel
+    let model: any NotchHost
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {

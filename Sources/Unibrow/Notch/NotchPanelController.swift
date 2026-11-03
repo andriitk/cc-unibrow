@@ -1,27 +1,13 @@
 import AppKit
-import Observation
 import SwiftUI
-
-/// UI-only state of the island, separate from the request data in `AppModel`.
-@MainActor
-@Observable
-final class IslandState {
-    /// The pointer is over the island and the request list is open.
-    var isExpanded = false
-    /// The island's current frame in the panel's coordinate space (top-left origin),
-    /// reported by the SwiftUI view. Used for hit-testing the click-through panel.
-    var islandFrame: CGRect = .zero
-    /// Notch size on the current screen; the island grows out of it.
-    var notchSize: CGSize = NotchGeometry.virtualNotchSize
-    var hasHardwareNotch = false
-}
+import UnibrowNotchUI
 
 /// Owns the notch panel: positions it on the right screen, makes it
 /// click-through everywhere except the island, and expands the island on hover.
 @MainActor
 final class NotchPanelController {
     private let model: AppModel
-    private let state = IslandState()
+    private let state = IslandState(notchSize: NotchGeometry.virtualNotchSize)
     private let panel: NotchPanel
     private var monitors: [Any] = []
     private var collapseTask: Task<Void, Never>?
@@ -77,7 +63,6 @@ final class NotchPanelController {
         guard let screen = NotchGeometry.preferredScreen() else { return }
         let geometry = NotchGeometry(screen: screen)
         state.notchSize = geometry.notchRect.size
-        state.hasHardwareNotch = geometry.hasHardwareNotch
 
         let size = Self.canvasSize
         let origin = CGPoint(x: geometry.notchRect.midX - size.width / 2, y: geometry.screenFrame.maxY - size.height)
@@ -134,26 +119,6 @@ final class NotchPanelController {
                 self.endTyping()
             }
         }
-    }
-}
-
-/// Asks the notch panel to accept keyboard input (for free-text answers).
-struct BeginTypingAction {
-    let run: @MainActor () -> Void
-
-    @MainActor func callAsFunction() { run() }
-}
-
-// A classic EnvironmentKey rather than `@Entry`: the macro plugin ships only
-// with full Xcode, and this project must build with the Command Line Tools.
-private struct BeginTypingKey: EnvironmentKey {
-    static let defaultValue = BeginTypingAction {}
-}
-
-extension EnvironmentValues {
-    var beginTyping: BeginTypingAction {
-        get { self[BeginTypingKey.self] }
-        set { self[BeginTypingKey.self] = newValue }
     }
 }
 

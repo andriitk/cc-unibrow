@@ -18,7 +18,8 @@ Unibrow has three parts: a Claude Code **plugin** that registers hooks, a tiny
 | `plugin/` | The Claude Code plugin: `hooks/hooks.json` and `bin/unibrow-hook`, a POSIX shell shim. The shim execs the relay that the app links on launch, so the plugin never needs to know where the app is installed. Without the app it is a no-op (and says so once per session). |
 | `Sources/UnibrowHook` | `unibrow-hook`, the relay. Reads the hook JSON from stdin, adds session details (git branch, repository root, process ancestry, and for a risky Bash request an impact note), sends it to the app, and for a permission request waits for the decision and prints it in Claude Code's format. |
 | `Sources/UnibrowCore` | Everything worth testing, with no UI: wire protocol, hook payloads and output, the pending-request queue, finished-session notices, running subagents, tool summaries, risky-command recognition and impact notes, questions, window-title matching, git and process lookups. |
-| `Sources/Unibrow` | The app: socket server, notch panel, SwiftUI views, menu bar, window focus. Kept thin. |
+| `Sources/UnibrowNotchUI` | The notch's SwiftUI views: the island, request cards, question and MCP forms, alerts, finished notices. A library with no app code: it reads and acts only through `NotchHost` (below). |
+| `Sources/Unibrow` | The app: socket server, `AppModel` (the `NotchHost`), notch panel, menu bar, window focus, plugin and relay setup. Kept thin. |
 | `.claude-plugin/marketplace.json` | Makes the repository itself a plugin marketplace. |
 | `install.sh`, `scripts/` | Installer, app bundling, icon rendering, demo requests. |
 
@@ -428,6 +429,37 @@ picks the first regular, Dock-visible process. To raise the right window it
 tries, in order: Accessibility window titles (opt-in, any app), asking the
 editor to open the repository root (VS Code family, JetBrains), and finally
 activating the app.
+
+## Notch UI library
+
+`UnibrowCore` and `UnibrowNotchUI` are library products, so another app can
+show the same notch by depending on this package (pin a commit or tag)
+instead of copying the views. Unibrow.app uses them the same way.
+
+The seam is one `@MainActor` protocol, `NotchHost`, which the host's
+`@Observable` model adopts. It exposes state as core values (`queue`,
+`alerts`, `finished`, `subagents`, `peek`, `showsWindowFocusHint`) and takes
+the user's actions (`decide` with a `PermissionChoice`, `answer`,
+`answerElicitation`, `openElicitationLink`, `sendToTerminal`,
+`bringToFront`, `open`/`dismiss` for alerts and finished notices,
+`clearFinished`, `dismissWindowFocusHint`). The views decide nothing about
+what an action means: the decision sent to Claude Code, focus and stored
+settings stay in the host. `hasContent` comes with the protocol.
+
+Public surface, nothing else:
+
+| Symbol | Role |
+|---|---|
+| `NotchHost`, `NotchPeek`, `PermissionChoice` | The seam above. |
+| `NotchRootView(model:island:)` | The whole island. |
+| `IslandState(notchSize:)` | UI state the panel and the view share: `isExpanded`, `islandFrame` (for hit-testing a click-through panel), `notchSize`. |
+| `EnvironmentValues.beginTyping`, `BeginTypingAction` | Lets a text field ask the panel for the keyboard. |
+
+The panel itself (`NotchPanel`, `NotchPanelController`, `NotchGeometry`),
+the menu bar and everything that talks to the socket stay in the app: a
+host brings its own. Inside the library, `CardKind` picks a request's card
+and `CardActions` binds its buttons to the host; `UnibrowNotchUITests`
+covers both.
 
 ## Concurrency
 
