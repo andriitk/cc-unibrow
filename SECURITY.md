@@ -76,16 +76,18 @@ not the permission prompt", so the terminal prompt itself stays Claude Code's.
 
 The *Impact* line on a risky Bash request is computed by the hook, in the
 session's folder, before you approve anything, with read-only lookups only:
-`git` with `GIT_OPTIONAL_LOCKS=0`, no fsmonitor and no hooks
-(`core.hooksPath=/dev/null`) for `remote get-url`, `remote`, `rev-parse`,
-`symbolic-ref`, `rev-list --count`, `config --list` and `status --porcelain
+`git` with `GIT_OPTIONAL_LOCKS=0`, `GIT_NO_LAZY_FETCH=1`, no fsmonitor, no
+hooks (`core.hooksPath=/dev/null`) and no transport (`protocol.allow=never`)
+for `config --list`, `remote get-url`, `remote`, `rev-parse`,
+`symbolic-ref`, `rev-list --count` and `status --porcelain
 --ignore-submodules=all`, plus `lstat` and a directory walk that never
-follows symlinks and stops at 10,000 items. `git status` can run a clean
-filter, which is a program named in git config; if any `filter.*` setting
-comes from the repository's own config (local, worktree, includes) or the
-command line rather than your global or system config, the status lookup is
-skipped and there is no count. The other lookups read refs, config and
-objects only. No
+follows symlinks and stops at 10,000 items. `git status` could run a clean
+filter or filter process, which are programs named in git config; every
+filter driver configured in any scope (git-lfs included) is switched off for
+that call, so counts for filtered files may be approximate. In a partial
+clone (`extensions.partialClone`, or a `remote.*.promisor` remote), where
+git could fetch missing objects, no git lookup runs at all. The other
+lookups read refs, config and objects only. No
 fetch, no network. Everything stops at a 0.3 s budget, and a failed or slow
 lookup only leaves the line out. It is information: it never enables, blocks
 or delays Allow, and the review rules (“Show full …”) are unchanged. Remote

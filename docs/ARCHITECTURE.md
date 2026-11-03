@@ -179,7 +179,10 @@ short note before it sends the request. Everything is in the core:
   in a pipeline and no `||` before it in its list could skip it, and only
   until that `&&` chain ends (`cd x && rm a; rm b`: `b` runs whether or not
   `cd` worked, so its folder is unknown). Otherwise the folder is unknown and
-  relative targets get no note. `popd` and `pushd` alone make it unknown. A
+  relative targets get no note. `popd` and `pushd` alone make it unknown, and
+  so does a `cd` behind `env`, `sudo`, `nohup`, `exec` or `time` (an
+  external `cd` does not move the shell; `command`, `builtin` and
+  `NAME=value` prefixes keep it a builtin). A
   conditional, piped or background `export` (or an `unset`) of `GH_TOKEN`,
   `GITHUB_TOKEN` or `GH_REPO` makes `gh` lines skip.
 - `CommandImpact.note` looks things up through `ImpactProbe` (injectable;
@@ -187,10 +190,15 @@ short note before it sends the request. Everything is in the core:
   `-c core.fsmonitor=false`, `-c core.hooksPath=/dev/null`, and uses `lstat`,
   `realpath` and a `readdir` walk that opens folders with `O_NOFOLLOW`). The
   relay runs before the user approves, so no lookup may start a program the
-  repository names: `git status` (the only call that can run one, through a
-  clean filter) runs only when every `filter.*` entry in
-  `git config --list --show-scope --includes` is from the global or system
-  scope, and with `--ignore-submodules=all`. The whole note has a 300 ms
+  config names or touch the network. Every call gets
+  `-c protocol.allow=never` and `GIT_NO_LAZY_FETCH=1`. The first call in a
+  repository is `git config --list --show-scope --includes -z`
+  (`RepositoryGitConfig`): a partial clone (`extensions.partialClone`, a
+  `remote.*.promisor` not false) gets no further git call, since an older
+  git could fetch missing objects; and every filter driver with a `clean`,
+  `smudge` or `process` command in any scope is switched off for
+  `git status` (`-c filter.<name>.clean= … .required=false`), the only call
+  that could run one. `status` also gets `--ignore-submodules=all`. The whole note has a 300 ms
   budget (`CommandImpact.budget`): a `git` still running at the deadline is
   terminated and its fact left out; counting stops at the deadline or at
   10,000 items and says `10,000+`. Commits that would be overwritten come
