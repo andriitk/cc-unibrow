@@ -27,7 +27,10 @@ func relay() -> Data? {
         input: input,
         eventName: CommandLine.arguments.dropFirst().first,
         repository: { GitBranch.repository(containing: $0) },
-        ancestors: { ProcessAncestry.candidates(of: getpid()) }
+        ancestors: { ProcessAncestry.candidates(of: getpid()) },
+        // A risky Bash command gets a short, read-only impact note, looked
+        // up within `CommandImpact.budget`; on any failure there is none.
+        impact: { payload, root in CommandImpact.note(for: payload, projectRoot: root, probe: .live()) }
     ) else { return nil }
     let event = message.event
 

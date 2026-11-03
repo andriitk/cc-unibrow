@@ -21,6 +21,9 @@ public struct PendingRequest: Sendable, Identifiable, Hashable {
     /// Set for an MCP elicitation (an `Elicitation` hook), which waits in the
     /// queue like a permission request but asks for a form or a URL.
     public var elicitation: ElicitationRequest?
+    /// What a risky Bash command would affect, from the relay. Shown on the
+    /// card; never part of the review rules.
+    public var impact: ImpactNote?
 
     public init(
         id: UUID = UUID(),
