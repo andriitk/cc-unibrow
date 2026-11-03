@@ -79,7 +79,9 @@ struct CommandImpactTests {
         projectRoot: String? = nil,
         home: String = home,
         probe: ImpactProbe = .live(),
-        budget: Duration = CommandImpact.budget
+        // Generous, so a slow CI machine checks what the lookups find; the
+        // budget itself has its own tests below.
+        budget: Duration = .seconds(10)
     ) -> [String]? {
         CommandImpact.note(
             for: payload(command, cwd: cwd), projectRoot: projectRoot, home: home, probe: probe, budget: budget
