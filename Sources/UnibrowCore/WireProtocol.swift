@@ -25,7 +25,11 @@ public import Foundation
 ///   Code wrote them.
 ///
 /// Optional fields an older reader may ignore are added without a new
-/// version: `impact` (a Bash `PermissionRequest` only) is one.
+/// version: `impact` (a Bash `PermissionRequest` only) is one. So is the
+/// event `PostToolBatch`: it is only a hint, and an app that does not know it
+/// drops the message, which changes nothing (the relay and the app come from
+/// one build; a newer plugin only makes an older relay see an event name it
+/// ignores).
 ///
 /// A message without `version` is read as version 1. A receiver accepts every
 /// version in `supportedVersions` and drops anything newer (the relay then
@@ -139,7 +143,7 @@ public struct HookMessage: Sendable, Codable, Hashable {
         let repo = details ? payload.cwd.flatMap(repository) : nil
         return HookMessage(
             event: event,
-            payload: payload.raw,
+            payload: event == .postToolBatch ? withoutToolResponses(payload.raw) : payload.raw,
             branch: repo?.branch,
             projectRoot: repo?.root,
             ancestorPIDs: details ? ancestors() : nil,
@@ -148,6 +152,21 @@ public struct HookMessage: Sendable, Codable, Hashable {
                 : nil,
             impact: event == .permissionRequest ? impact(payload, repo?.root) : nil
         )
+    }
+}
+
+extension HookMessage {
+    /// A `PostToolBatch` payload without each call's `tool_response`: the app
+    /// needs only which calls resolved, and a batch's responses (file
+    /// contents, command output) can be megabytes. Everything else stays.
+    static func withoutToolResponses(_ raw: JSONValue) -> JSONValue {
+        guard var object = raw.objectValue, let calls = object["tool_calls"]?.arrayValue else { return raw }
+        object["tool_calls"] = .array(calls.map { call in
+            guard var fields = call.objectValue else { return call }
+            fields["tool_response"] = nil
+            return .object(fields)
+        })
+        return .object(object)
     }
 }
 

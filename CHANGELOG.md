@@ -76,6 +76,15 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- A card now leaves the notch as soon as Claude Code reports that its request
+  was decided elsewhere, in more cases: an `AskUserQuestion` answered or a
+  plan accepted in the terminal (their input changes when answered, so the
+  card used to wait for the end of the turn), and a request refused in the
+  terminal with feedback (new `PostToolBatch` hook). A subagent's tool calls
+  no longer drop the main conversation's identical request. Claude Code
+  keeps the hook running after a terminal or auto-mode approval and fires no
+  event until the tool ends, so a long command approved in the terminal
+  still keeps its card until it finishes.
 - `make install` no longer stops before launching the app when macOS has no
   Accessibility grant to reset (for example on the first install, or after
   the app was removed).
