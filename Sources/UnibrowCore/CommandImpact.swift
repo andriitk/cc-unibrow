@@ -155,6 +155,7 @@ public enum CommandImpact {
 
         func forcePush(_ push: RiskyCommand.ForcePush) -> [String] {
             let directory = push.directory
+            guard probeableConfig(in: directory) != nil else { return [] }
             var remoteName: String?
             var url: String?
             var pushBranch: String?
@@ -238,14 +239,18 @@ public enum CommandImpact {
         // MARK: Discard
 
         func discard(_ discard: RiskyCommand.Discard) -> [String] {
-            // `git status` may hash changed files through a clean filter,
-            // which is a program. The relay runs before the user approves
-            // anything, so a filter the repository itself names (a cloned
-            // repository can ship the config through an include, or be
-            // prepared by someone else) must not run: no count then.
-            guard filtersAreTrusted(in: discard.directory) else { return [] }
+            // `git status` may hash changed files through a clean filter or
+            // a filter process, which are programs. The relay runs before
+            // the user approves anything, so no filter may run: not one the
+            // repository names, and not a trusted global one either (keys
+            // the repository sets, such as `lfs.customtransfer.*`, can steer
+            // it). Every driver is switched off for this call; the count may
+            // then be approximate for filtered files (LFS).
+            guard let config = probeableConfig(in: discard.directory),
+                  let filtersOff = config.disablingFilters
+            else { return [] }
             // Submodules would be entered with their own config.
-            var arguments = ["status", "--porcelain=v1", "-z", "--no-renames", "--ignore-submodules=all"]
+            var arguments = filtersOff + ["status", "--porcelain=v1", "-z", "--no-renames", "--ignore-submodules=all"]
             switch discard.kind {
             case .clean(let directories, let ignored):
                 arguments.append(directories ? "--untracked-files=all" : "--untracked-files=normal")
@@ -297,26 +302,19 @@ public enum CommandImpact {
             }
         }
 
-        /// Whether every `filter.*` setting that applies here comes from the
-        /// user's own global or system config (git-lfs and the like), not
-        /// from the repository (`local`, `worktree`) or the command line.
-        /// Reading config runs nothing. `--list` rather than `--get-regexp`,
-        /// which exits 1 when nothing matches and so looks like a failure.
-        func filtersAreTrusted(in directory: String) -> Bool {
-            guard let config = git(["config", "--list", "--show-scope", "--includes", "-z"], in: directory, raw: true) else {
-                return false
-            }
-            // `-z`: `scope<NUL>key<LF>value<NUL>` for each entry. Scopes:
-            // system, global, local, worktree, command, or unknown (a git's
-            // built-in file); only the first two count as the user's own.
-            let fields = config.split(separator: "\0", omittingEmptySubsequences: false)
-            guard fields.count % 2 == 1, fields.last?.isEmpty == true else { return false }
-            for index in stride(from: 0, to: fields.count - 1, by: 2) {
-                let scope = fields[index]
-                let key = fields[index + 1].prefix { $0 != "\n" }.lowercased()
-                if key.hasPrefix("filter."), scope != "global", scope != "system" { return false }
-            }
-            return true
+        /// The repository's git config, when git may be asked anything
+        /// there at all: `nil` if it cannot be read or the repository is a
+        /// partial clone, where `status` or `rev-list` could fetch missing
+        /// objects over the network (`GIT_NO_LAZY_FETCH` stops that only
+        /// from git 2.44). Reading config runs nothing. `--list` rather than
+        /// `--get-regexp`, which exits 1 when nothing matches and so looks
+        /// like a failure here.
+        func probeableConfig(in directory: String) -> RepositoryGitConfig? {
+            guard let listing = git(["config", "--list", "--show-scope", "--includes", "-z"], in: directory, raw: true),
+                  let config = RepositoryGitConfig(listing: listing),
+                  !config.isPartialClone
+            else { return nil }
+            return config
         }
 
         // MARK: Removal
@@ -377,6 +375,7 @@ public enum CommandImpact {
             } else if let repository = github.repository {
                 target = repository
             } else if let directory = github.directory,
+                      probeableConfig(in: directory) != nil,
                       let url = git(["remote", "get-url", "origin"], in: directory),
                       let parsed = RemoteURL(url) {
                 target = "\(parsed.path) (origin)"
@@ -385,6 +384,60 @@ public enum CommandImpact {
             }
             return "gh \(github.action) as \(account) → \(target)"
         }
+    }
+}
+
+/// What the impact probe needs to know from `git config --list
+/// --show-scope --includes -z` before it runs anything else in a repository.
+struct RepositoryGitConfig: Equatable {
+    /// Filter drivers with a `clean`, `smudge` or `process` command in any
+    /// scope, in order of appearance.
+    var filterDrivers: [String] = []
+    /// `extensions.partialClone` or a `remote.<name>.promisor` that is not
+    /// false: objects may be missing locally and fetched on demand.
+    var isPartialClone = false
+
+    /// More drivers than this and `git status` is not run at all.
+    static let maxFilterDrivers = 50
+
+    /// `nil` when the listing is not in the expected shape.
+    init?(listing: String) {
+        // `-z`: `scope<NUL>key<LF>value<NUL>` for each entry.
+        let fields = listing.split(separator: "\0", omittingEmptySubsequences: false)
+        guard fields.count % 2 == 1, fields.last?.isEmpty == true else { return nil }
+        for index in stride(from: 1, to: fields.count - 1, by: 2) {
+            let entry = fields[index]
+            let key = String(entry.prefix { $0 != "\n" })
+            let value = entry.drop { $0 != "\n" }.dropFirst().lowercased()
+            // Section and variable names are case-insensitive (git prints
+            // them lowercased); a subsection (the driver name) is not.
+            let lowered = key.lowercased()
+            if lowered == "extensions.partialclone" {
+                isPartialClone = true
+            } else if lowered.hasPrefix("remote."), lowered.hasSuffix(".promisor"),
+                      !["false", "no", "off", "0"].contains(value) {
+                isPartialClone = true
+            } else if lowered.hasPrefix("filter."), let dot = key.lastIndex(of: "."),
+                      ["clean", "smudge", "process"].contains(lowered[lowered.index(after: dot)...]) {
+                let name = String(key[key.index(key.startIndex, offsetBy: "filter.".count)..<dot])
+                if !filterDrivers.contains(name) { filterDrivers.append(name) }
+            }
+        }
+    }
+
+    /// `-c` options that switch every filter driver off for one git call
+    /// (an empty command means "no filter"; `required=false` keeps git from
+    /// failing for lack of one). `nil` if a name cannot be passed safely.
+    var disablingFilters: [String]? {
+        guard filterDrivers.count <= Self.maxFilterDrivers else { return nil }
+        var options: [String] = []
+        for name in filterDrivers {
+            guard !name.isEmpty, !name.contains("="), !name.contains(where: \.isNewline) else { return nil }
+            for setting in ["clean=", "smudge=", "process=", "required=false"] {
+                options += ["-c", "filter.\(name).\(setting)"]
+            }
+        }
+        return options
     }
 }
 

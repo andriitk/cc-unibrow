@@ -93,7 +93,11 @@ struct CommandImpactTests {
         count: (Int, Bool) = (3, true)
     ) -> ImpactProbe {
         ImpactProbe(
-            git: { arguments, _, _ in answers[arguments.joined(separator: " ")].map { Data($0.utf8) } },
+            git: { arguments, _, _ in
+                // An empty config listing unless the test gives one.
+                let key = arguments.joined(separator: " ")
+                return (answers[key] ?? (key == "config --list --show-scope --includes -z" ? "" : nil)).map { Data($0.utf8) }
+            },
             entry: { entries[$0] },
             countItems: { _, _, _ in count },
             realPath: { $0 }
@@ -251,24 +255,66 @@ struct CommandImpactTests {
         let temp = try TempDirectory()
         let (work, marker) = try Self.filteredRepository(temp)
         try temp.git("config", "filter.evil.clean", temp.path + "/filter.sh", in: work)
+        try temp.git("config", "filter.evil.process", temp.path + "/filter.sh", in: work)
+        try temp.git("config", "filter.evil.required", "true", in: work)
         try temp.file("empty-global", "")
+        let probe = Self.probe(globalConfig: temp.path + "/empty-global")
 
-        let lines = Self.note("git reset --hard", cwd: work, probe: Self.probe(globalConfig: temp.path + "/empty-global"))
-        #expect(!FileManager.default.fileExists(atPath: marker))
-        #expect(lines == nil)
-        // The other lookups still work: the push line needs no status.
-        #expect(Self.note("git push -f nowhere main", cwd: work, probe: Self.probe(globalConfig: temp.path + "/empty-global"))
-            == ["Force push to nowhere, branch main"])
+        // The driver is switched off for status, so the count is still there.
+        #expect(Self.note("git reset --hard", cwd: work, probe: probe) == ["Discards uncommitted changes in 1 file"])
+        #expect(Self.note("git push -f nowhere main", cwd: work, probe: probe) == ["Force push to nowhere, branch main"])
         #expect(!FileManager.default.fileExists(atPath: marker))
     }
 
-    @Test("A filter from the user's global config (git-lfs and the like) is trusted; the count stays")
-    func globalFilterKeepsCount() throws {
+    @Test("A filter from the user's global config does not run either")
+    func globalFilterDoesNotRun() throws {
         let temp = try TempDirectory()
-        let (work, _) = try Self.filteredRepository(temp)
-        try temp.file("global-config", "[filter \"evil\"]\n\tclean = cat\n")
+        let (work, marker) = try Self.filteredRepository(temp)
+        let script = temp.path + "/filter.sh"
+        try temp.file("global-config", "[filter \"evil\"]\n\tclean = \(script)\n\tprocess = \(script)\n\trequired = true\n")
         #expect(Self.note("git reset --hard", cwd: work, probe: Self.probe(globalConfig: temp.path + "/global-config"))
             == ["Discards uncommitted changes in 1 file"])
+        #expect(!FileManager.default.fileExists(atPath: marker))
+    }
+
+    @Test("A partial clone gets no git-based lines at all", arguments: [
+        ["extensions.partialClone", "origin"], ["remote.origin.promisor", "true"],
+    ])
+    func partialClone(setting: [String]) throws {
+        let temp = try TempDirectory()
+        let work = try temp.repository()
+        try temp.file("work/README.md", "changed")
+        try temp.git("remote", "add", "origin", "git@github.com:org/app.git", in: work)
+        try temp.git("config", setting[0], setting[1], in: work)
+        try temp.file("empty-global", "")
+        let probe = Self.probe(globalConfig: temp.path + "/empty-global")
+
+        #expect(Self.note("git reset --hard", cwd: work, probe: probe) == nil)
+        #expect(Self.note("git push -f origin main", cwd: work, probe: probe) == nil)
+        #expect(Self.note("gh pr merge", cwd: work, probe: probe) == ["gh pr merge as gh default account → repository unknown"])
+        // Files are not git: rm still gets its line.
+        #expect(Self.note("rm -rf README.md", cwd: work, projectRoot: work, probe: probe) == ["\(work)/README.md: file"])
+    }
+
+    @Test("Reading the config listing: drivers, partial clones, odd input")
+    func configListing() throws {
+        let listing = [
+            "global", "filter.lfs.process\ngit-lfs filter-process",
+            "global", "filter.lfs.required\ntrue",
+            "local", "filter.My.Odd.clean\n./x",
+            "local", "remote.origin.promisor\nfalse",
+            "local", "core.bare\nfalse",
+        ].joined(separator: "\0") + "\0"
+        let config = try #require(RepositoryGitConfig(listing: listing))
+        #expect(config.filterDrivers == ["lfs", "My.Odd"])
+        #expect(!config.isPartialClone)
+        #expect(config.disablingFilters?.contains("filter.My.Odd.process=") == true)
+        #expect(config.disablingFilters?.count == 16)
+
+        #expect(RepositoryGitConfig(listing: "global\0broken") == nil)
+        #expect(RepositoryGitConfig(listing: "")?.filterDrivers == [])
+        #expect(RepositoryGitConfig(listing: "local\0remote.x.promisor\nTrue\0")?.isPartialClone == true)
+        #expect(RepositoryGitConfig(listing: "local\0filter.a=b.clean\nx\0")?.disablingFilters == nil)
     }
 
     @Test("Discarding work: counts from git status")

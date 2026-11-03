@@ -42,17 +42,22 @@ public struct ImpactProbe: Sendable {
         // write to the repository or block a git the user runs.
         gitEnvironment["GIT_OPTIONAL_LOCKS"] = "0"
         gitEnvironment["GIT_TERMINAL_PROMPT"] = "0"
+        // No on-demand fetch of missing objects in a partial clone (git
+        // 2.44+; older gits are covered by the partial-clone check).
+        gitEnvironment["GIT_NO_LAZY_FETCH"] = "1"
         gitEnvironment["LC_ALL"] = "C"
         let fixedEnvironment = gitEnvironment
         return ImpactProbe(
             git: { arguments, directory, deadline in
                 guard let gitPath else { return nil }
-                // No fsmonitor program and no hooks, whatever the
-                // repository's config names. Filters are checked by the
-                // caller (`CommandImpact`) before `git status`.
+                // No fsmonitor program, no hooks and no transport (so no
+                // network, ssh command or remote helper), whatever the
+                // repository's config names. Filters are switched off by
+                // the caller (`CommandImpact`) for `git status`.
                 return run(
                     gitPath,
-                    ["-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null", "--no-pager"] + arguments,
+                    ["-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null", "-c", "protocol.allow=never", "--no-pager"]
+                        + arguments,
                     in: directory,
                     environment: fixedEnvironment,
                     deadline: deadline
