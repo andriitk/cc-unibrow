@@ -175,10 +175,22 @@ short note before it sends the request. Everything is in the core:
   GNU `rm` differ after it) and `gh pr create|merge`, `repo delete|archive`,
   `release create|delete`, `api -X DELETE`. Anything it is not sure about is
   not recognised: no note is better than a wrong one.
+- A `cd`/`pushd` moves later commands only when `&&` follows it, it is not
+  in a pipeline and no `||` before it in its list could skip it, and only
+  until that `&&` chain ends (`cd x && rm a; rm b`: `b` runs whether or not
+  `cd` worked, so its folder is unknown). Otherwise the folder is unknown and
+  relative targets get no note. `popd` and `pushd` alone make it unknown. A
+  conditional, piped or background `export` (or an `unset`) of `GH_TOKEN`,
+  `GITHUB_TOKEN` or `GH_REPO` makes `gh` lines skip.
 - `CommandImpact.note` looks things up through `ImpactProbe` (injectable;
   `live` runs the `git` on `PATH` with `GIT_OPTIONAL_LOCKS=0`,
-  `-c core.fsmonitor=false`, and uses `lstat`, `realpath` and a `readdir`
-  walk that opens folders with `O_NOFOLLOW`). The whole note has a 300 ms
+  `-c core.fsmonitor=false`, `-c core.hooksPath=/dev/null`, and uses `lstat`,
+  `realpath` and a `readdir` walk that opens folders with `O_NOFOLLOW`). The
+  relay runs before the user approves, so no lookup may start a program the
+  repository names: `git status` (the only call that can run one, through a
+  clean filter) runs only when every `filter.*` entry in
+  `git config --list --show-scope --includes` is from the global or system
+  scope, and with `--ignore-submodules=all`. The whole note has a 300 ms
   budget (`CommandImpact.budget`): a `git` still running at the deadline is
   terminated and its fact left out; counting stops at the deadline or at
   10,000 items and says `10,000+`. Commits that would be overwritten come

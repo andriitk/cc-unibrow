@@ -75,10 +75,17 @@ not the permission prompt", so the terminal prompt itself stays Claude Code's.
 ## Impact lines
 
 The *Impact* line on a risky Bash request is computed by the hook, in the
-session's folder, with read-only lookups only: `git` with
-`GIT_OPTIONAL_LOCKS=0` and no fsmonitor (`remote get-url`, `rev-parse`,
-`symbolic-ref`, `rev-list --count`, `status --porcelain`), `lstat`, and a
-directory walk that never follows symlinks and stops at 10,000 items. No
+session's folder, before you approve anything, with read-only lookups only:
+`git` with `GIT_OPTIONAL_LOCKS=0`, no fsmonitor and no hooks
+(`core.hooksPath=/dev/null`) for `remote get-url`, `remote`, `rev-parse`,
+`symbolic-ref`, `rev-list --count`, `config --list` and `status --porcelain
+--ignore-submodules=all`, plus `lstat` and a directory walk that never
+follows symlinks and stops at 10,000 items. `git status` can run a clean
+filter, which is a program named in git config; if any `filter.*` setting
+comes from the repository's own config (local, worktree, includes) or the
+command line rather than your global or system config, the status lookup is
+skipped and there is no count. The other lookups read refs, config and
+objects only. No
 fetch, no network. Everything stops at a 0.3 s budget, and a failed or slow
 lookup only leaves the line out. It is information: it never enables, blocks
 or delays Allow, and the review rules (“Show full …”) are unchanged. Remote
