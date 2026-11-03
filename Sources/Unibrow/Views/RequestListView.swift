@@ -63,7 +63,10 @@ struct RequestListView: View {
 
     @ViewBuilder
     private func card(for request: PendingRequest) -> some View {
-        let context = RequestContext(request: request) {
+        let context = RequestContext(
+            request: request,
+            runningAgents: model.subagents.badge(sessionID: request.sessionID)
+        ) {
             model.bringToFront(request)
         }
         if let elicitation = request.elicitation {
@@ -177,6 +180,7 @@ private struct FinishedSection: View {
             ForEach(model.finished.items) { notice in
                 FinishedRow(
                     notice: notice,
+                    agents: model.subagents.badge(sessionID: notice.sessionID),
                     onOpen: { model.open(notice) },
                     onDismiss: { model.dismiss(notice) }
                 )
@@ -188,6 +192,7 @@ private struct FinishedSection: View {
 
 private struct FinishedRow: View {
     let notice: FinishedSession
+    let agents: RunningSubagents.Badge?
     let onOpen: () -> Void
     let onDismiss: () -> Void
 
@@ -215,6 +220,10 @@ private struct FinishedRow: View {
                     }
                     Chip(text: notice.sessionTag, symbol: "terminal")
                         .help("Claude Code session \(notice.sessionID)")
+                    if let agents {
+                        Chip(text: agents.text, symbol: "person.3")
+                            .help(agents.help)
+                    }
                     Spacer(minLength: 4)
                     if let name = hostApp?.localizedName {
                         Button(action: onOpen) {

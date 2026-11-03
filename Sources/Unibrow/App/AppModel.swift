@@ -25,6 +25,10 @@ final class AppModel {
     /// failed on an API error, or a background agent waits for input.
     private(set) var alerts = SessionAlerts()
 
+    /// Subagents running per session. Shown as a count next to the session;
+    /// never a reason to peek, sound or expand.
+    private(set) var subagents = RunningSubagents()
+
     /// What briefly peeks out of the notch: a new request, an alert, or a
     /// session that just finished.
     enum Peek: Equatable {
@@ -336,6 +340,7 @@ final class AppModel {
         case .message(let id, let message, let peerPID):
             notePluginWorks()
             let payload = HookPayload(raw: message.payload)
+            subagents.handle(message.event, payload: payload)
             if let sessionID = payload.sessionID {
                 // Any sign of life in a session retires its "finished" notice.
                 if let notice = finished.items.first(where: { $0.sessionID == sessionID }) {
@@ -389,6 +394,7 @@ final class AppModel {
         }
         request.branch = message.branch
         request.projectRoot = message.projectRoot
+        request.impact = message.impact
         queue.append(request)
         if playsSound { NSSound(named: "Tink")?.play() }
         showPeek(.request(request))
@@ -457,6 +463,7 @@ final class AppModel {
     }
 
     private func sweepExpired() {
+        subagents.removeExpired(now: .now)
         finished.removeExpired(now: .now)
         if case .finished(let notice) = peek, !finished.items.contains(notice) { peek = nil }
         alerts.removeExpired(now: .now)

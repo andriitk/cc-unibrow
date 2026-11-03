@@ -13,6 +13,7 @@ struct AlertSection: View {
             ForEach(model.alerts.items) { alert in
                 AlertRow(
                     alert: alert,
+                    agents: model.subagents.badge(sessionID: alert.sessionID),
                     onOpen: { model.open(alert) },
                     onDismiss: { model.dismiss(alert) }
                 )
@@ -24,6 +25,7 @@ struct AlertSection: View {
 
 private struct AlertRow: View {
     let alert: SessionAlert
+    let agents: RunningSubagents.Badge?
     let onOpen: () -> Void
     let onDismiss: () -> Void
 
@@ -67,6 +69,10 @@ private struct AlertRow: View {
                     }
                     Chip(text: alert.sessionTag, symbol: "terminal")
                         .help("Claude Code session \(alert.sessionID)")
+                    if let agents {
+                        Chip(text: agents.text, symbol: "person.3")
+                            .help(agents.help)
+                    }
                     Spacer(minLength: 4)
                     if let name = hostApp?.localizedName {
                         Button(action: onOpen) {

@@ -5,6 +5,8 @@ import UnibrowCore
 /// What every card needs to know about its request besides the tool itself.
 struct RequestContext {
     let request: PendingRequest
+    /// Subagents running in the request's session, if any.
+    var runningAgents: RunningSubagents.Badge?
     let bringToFront: () -> Void
 
     var hostApp: NSRunningApplication? {
@@ -42,6 +44,10 @@ struct CardHeader: View {
             if let agent = context.request.agentType {
                 Chip(text: Chip.shortened(agent), symbol: "person.2")
                     .help("Asked by the subagent \(agent)")
+            }
+            if let agents = context.runningAgents {
+                Chip(text: agents.text, symbol: "person.3")
+                    .help(agents.help)
             }
             // The start of the Claude Code session ID: the same on every card
             // that comes from one terminal, different across terminals.
