@@ -20,8 +20,8 @@ public enum HookEvent: String, Sendable, Codable, CaseIterable {
     case stopFailure = "StopFailure"
     /// Claude Code's notifications; the plugin forwards only `agent_needs_input`.
     case notification = "Notification"
-    /// A subagent started or finished (wire version 2). Unibrow itself shows
-    /// nothing for them; a compatible host app may.
+    /// A subagent started or finished (wire version 2). Counted per session
+    /// by `RunningSubagents`; they never resolve cards or alerts.
     case subagentStart = "SubagentStart"
     case subagentStop = "SubagentStop"
 
