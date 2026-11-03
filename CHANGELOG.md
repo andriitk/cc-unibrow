@@ -48,6 +48,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- For developers: the notch views are now the `UnibrowNotchUI` library,
+  and `UnibrowCore` and `UnibrowNotchUI` are library products, so another
+  app can show the same notch by depending on this package. The views
+  talk to the app only through the `NotchHost` protocol. Nothing changes
+  in the app. See "Notch UI library" in `docs/ARCHITECTURE.md`.
 - The relay protocol is at version 2 (adds the subagent events). The app
   accepts versions 1 and 2, and reads a message without a version as 1.
   The impact note travels as a new optional `impact` field, so it needs no

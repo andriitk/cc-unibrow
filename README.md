@@ -323,7 +323,8 @@ make demo           # five fake requests from three "sessions"
 
 Swift 6 with strict concurrency, SwiftPM only (no Xcode project needed). The
 design, the wire protocol and the safety guarantees are described in
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Contributions are welcome: see
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), including how another app can
+reuse the notch views (the `UnibrowNotchUI` library). Contributions are welcome: see
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Roadmap
