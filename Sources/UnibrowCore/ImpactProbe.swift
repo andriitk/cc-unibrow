@@ -47,10 +47,12 @@ public struct ImpactProbe: Sendable {
         return ImpactProbe(
             git: { arguments, directory, deadline in
                 guard let gitPath else { return nil }
-                // No fsmonitor hook (a program the repository config names).
+                // No fsmonitor program and no hooks, whatever the
+                // repository's config names. Filters are checked by the
+                // caller (`CommandImpact`) before `git status`.
                 return run(
                     gitPath,
-                    ["-c", "core.fsmonitor=false", "--no-pager"] + arguments,
+                    ["-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null", "--no-pager"] + arguments,
                     in: directory,
                     environment: fixedEnvironment,
                     deadline: deadline

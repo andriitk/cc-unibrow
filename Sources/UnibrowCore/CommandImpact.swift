@@ -238,7 +238,14 @@ public enum CommandImpact {
         // MARK: Discard
 
         func discard(_ discard: RiskyCommand.Discard) -> [String] {
-            var arguments = ["status", "--porcelain=v1", "-z", "--no-renames"]
+            // `git status` may hash changed files through a clean filter,
+            // which is a program. The relay runs before the user approves
+            // anything, so a filter the repository itself names (a cloned
+            // repository can ship the config through an include, or be
+            // prepared by someone else) must not run: no count then.
+            guard filtersAreTrusted(in: discard.directory) else { return [] }
+            // Submodules would be entered with their own config.
+            var arguments = ["status", "--porcelain=v1", "-z", "--no-renames", "--ignore-submodules=all"]
             switch discard.kind {
             case .clean(let directories, let ignored):
                 arguments.append(directories ? "--untracked-files=all" : "--untracked-files=normal")
@@ -288,6 +295,28 @@ public enum CommandImpact {
                     ? "Nothing to delete\(scope)"
                     : "Deletes \(counted(deleted, complete: entries.complete, noun))\(scope)"]
             }
+        }
+
+        /// Whether every `filter.*` setting that applies here comes from the
+        /// user's own global or system config (git-lfs and the like), not
+        /// from the repository (`local`, `worktree`) or the command line.
+        /// Reading config runs nothing. `--list` rather than `--get-regexp`,
+        /// which exits 1 when nothing matches and so looks like a failure.
+        func filtersAreTrusted(in directory: String) -> Bool {
+            guard let config = git(["config", "--list", "--show-scope", "--includes", "-z"], in: directory, raw: true) else {
+                return false
+            }
+            // `-z`: `scope<NUL>key<LF>value<NUL>` for each entry. Scopes:
+            // system, global, local, worktree, command, or unknown (a git's
+            // built-in file); only the first two count as the user's own.
+            let fields = config.split(separator: "\0", omittingEmptySubsequences: false)
+            guard fields.count % 2 == 1, fields.last?.isEmpty == true else { return false }
+            for index in stride(from: 0, to: fields.count - 1, by: 2) {
+                let scope = fields[index]
+                let key = fields[index + 1].prefix { $0 != "\n" }.lowercased()
+                if key.hasPrefix("filter."), scope != "global", scope != "system" { return false }
+            }
+            return true
         }
 
         // MARK: Removal

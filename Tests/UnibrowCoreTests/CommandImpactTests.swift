@@ -222,6 +222,55 @@ struct CommandImpactTests {
         #expect(Self.note("git push -f nowhere main", cwd: work) == ["Force push to nowhere, branch main"])
     }
 
+    /// A repository whose `.gitattributes` sends every file through the
+    /// `evil` clean filter, and a tracked file changed since the commit, so
+    /// `git status` would have to run the filter to compare it.
+    private static func filteredRepository(_ temp: TempDirectory) throws -> (work: String, marker: String) {
+        let work = try temp.repository()
+        try temp.file("work/tracked.txt", "one")
+        try temp.git("add", ".", in: work)
+        try temp.git("commit", "-q", "-m", "tracked", in: work)
+        try temp.file("work/.gitattributes", "* filter=evil\n")
+        try temp.file("work/tracked.txt", "two")
+        let marker = temp.path + "/filter-ran"
+        try temp.file("filter.sh", "#!/bin/sh\ntouch '\(marker)'\ncat\n")
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: temp.path + "/filter.sh")
+        return (work, marker)
+    }
+
+    /// The live probe with a global git config of the test's own, never the user's.
+    private static func probe(globalConfig: String) -> ImpactProbe {
+        var environment = ProcessInfo.processInfo.environment
+        environment["GIT_CONFIG_GLOBAL"] = globalConfig
+        environment["GIT_CONFIG_NOSYSTEM"] = "1"
+        return .live(environment: environment)
+    }
+
+    @Test("A filter named by the repository's own config never runs before approval")
+    func repositoryFilterDoesNotRun() throws {
+        let temp = try TempDirectory()
+        let (work, marker) = try Self.filteredRepository(temp)
+        try temp.git("config", "filter.evil.clean", temp.path + "/filter.sh", in: work)
+        try temp.file("empty-global", "")
+
+        let lines = Self.note("git reset --hard", cwd: work, probe: Self.probe(globalConfig: temp.path + "/empty-global"))
+        #expect(!FileManager.default.fileExists(atPath: marker))
+        #expect(lines == nil)
+        // The other lookups still work: the push line needs no status.
+        #expect(Self.note("git push -f nowhere main", cwd: work, probe: Self.probe(globalConfig: temp.path + "/empty-global"))
+            == ["Force push to nowhere, branch main"])
+        #expect(!FileManager.default.fileExists(atPath: marker))
+    }
+
+    @Test("A filter from the user's global config (git-lfs and the like) is trusted; the count stays")
+    func globalFilterKeepsCount() throws {
+        let temp = try TempDirectory()
+        let (work, _) = try Self.filteredRepository(temp)
+        try temp.file("global-config", "[filter \"evil\"]\n\tclean = cat\n")
+        #expect(Self.note("git reset --hard", cwd: work, probe: Self.probe(globalConfig: temp.path + "/global-config"))
+            == ["Discards uncommitted changes in 1 file"])
+    }
+
     @Test("Discarding work: counts from git status")
     func discardLive() throws {
         let temp = try TempDirectory()
