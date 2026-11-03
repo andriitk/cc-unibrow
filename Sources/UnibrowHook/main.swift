@@ -41,8 +41,10 @@ func relay() -> Data? {
     guard event.expectsDecision else { return nil }
 
     // Blocks until the user decides. Claude Code may cancel this process at any
-    // time (the user answered in the terminal, the session ended); the app then
-    // sees the connection close and drops the request from the notch.
+    // time (the turn was interrupted, the session ended); the app then sees
+    // the connection close and drops the request from the notch. A decision
+    // made elsewhere does not end it: the app learns of it from later hook
+    // events, closes the connection, and this relay prints nothing.
     //
     // Safety net: if our parent dies without killing us, we are re-parented to
     // launchd (PID 1). Nobody can read our answer any more, so exit and free

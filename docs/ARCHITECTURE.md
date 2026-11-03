@@ -31,7 +31,8 @@ Unibrow has three parts: a Claude Code **plugin** that registers hooks, a tiny
 | `Elicitation` | blocking, 120 s timeout | MCP server requests: a form or a URL to open (below). The relay gives up after 110 s. |
 | `StopFailure` | async | The turn ended on an API error: drop the session's cards, show an alert. |
 | `Notification` (matcher `agent_needs_input`) | async | A background agent waits for input: show an alert. |
-| `PostToolUse`, `PostToolUseFailure`, `PermissionDenied` | async | A request was answered elsewhere: drop its card. |
+| `PostToolUse`, `PostToolUseFailure`, `PermissionDenied` | async | A request was answered elsewhere and its tool finished, failed or was denied by auto mode: drop its card (below). |
+| `PostToolBatch` | async | Every tool call of the agent's last response resolved: drop the cards of those calls, including one refused in the terminal with feedback (below). The relay drops the calls' `tool_response` before sending. |
 | `UserPromptSubmit`, `SessionEnd` | async | The session moved on: drop its cards, alert and “finished” notice. |
 | `Stop` | async | The turn ended: drop leftover cards, show a “finished” notice. |
 | `SubagentStart`, `SubagentStop` | async | Passed through with `agent_id` and `agent_type` (wire version 2). Counts running subagents per session (below). |
@@ -147,7 +148,7 @@ Every message carries `version`, the sender's wire version
 | Version | Changes |
 |---|---|
 | 1 | The original protocol: `HookMessage` (`version`, `event`, `payload`, optional `branch`, `projectRoot`, `ancestorPIDs`, `propertyOrder`) and `DecisionMessage` (`version`, `decision`). Events `PermissionRequest`, `Elicitation`, `PostToolUse`, `PostToolUseFailure`, `PermissionDenied`, `UserPromptSubmit`, `Stop`, `SessionEnd`, `StopFailure`, `Notification`. |
-| 2 | Adds the events `SubagentStart` and `SubagentStop`. The message shape is unchanged. Later, still version 2: the optional `HookMessage.impact`. |
+| 2 | Adds the events `SubagentStart` and `SubagentStop`. The message shape is unchanged. Later, still version 2: the optional `HookMessage.impact`, and the event `PostToolBatch` (a hint only: an app that does not know it drops the message, which changes nothing). |
 
 A message without `version` is read as version 1. The app accepts versions 1
 to its own (`WireProtocol.supportedVersions`) and closes the connection on
@@ -158,6 +159,54 @@ that an older reader may safely ignore do not need a bump. `impact` is such a
 field: `JSONDecoder` ignores keys a reader does not know, so an older app or
 host app shows the card without it, and a newer app decodes it with `try?`,
 so a malformed note drops the note, never the request.
+
+## Requests decided elsewhere
+
+The terminal shows its own prompt while a card waits, and auto mode's
+classifier or another hook may decide first. Claude Code does **not** end
+Unibrow's `PermissionRequest` hook when that happens: in 2.1.317 the hooks run
+in the background with the turn's abort signal, and the prompt's answer does
+not cancel them, so the status line keeps "running PermissionRequest hook"
+while the tool runs. The hook ends only when the turn is interrupted (Esc, a
+refusal without feedback), at its timeout, or when the relay gets an answer.
+So the app learns about a decision made elsewhere from later hook events:
+
+| Decided | First event that proves it | Card goes |
+|---|---|---|
+| Allowed in the terminal, by auto mode or by another hook | `PostToolUse` / `PostToolUseFailure` when the tool ends | when the tool ends |
+| Denied by auto mode | `PermissionDenied` | at once |
+| Refused in the terminal without feedback, Esc | the turn is interrupted, the hook ends (EOF) | at once |
+| Refused in the terminal with feedback | `PostToolBatch` (the call resolved; no `PostToolUse`) | at once |
+| `AskUserQuestion` answered, `ExitPlanMode` decided in the terminal | `PostToolUse` (both end at once) | at once |
+| Anything, turn over | `Stop`, `StopFailure`, `UserPromptSubmit`, `SessionEnd` | at once |
+
+No hook fires between a decision and the end of the tool (`PreToolUse` runs
+before the permission check, and there is no "permission decided" event), so
+a long command approved in the terminal keeps its card until it finishes.
+The transcript is no help either: Claude Code writes the call's result, with
+how its permission was decided, only when the tool ends. Unibrow does not
+read the transcript or other processes to guess sooner.
+
+Matching. `PermissionRequest` carries no `tool_use_id` ("receive `tool_name`
+and `tool_input` fields like PreToolUse hooks, but without `tool_use_id`",
+hooks reference), so a later event's call is matched to the oldest request
+of the same session **and the same agent** (`agent_id`, absent for the main
+conversation) with the same tool and the same input
+(`PendingRequest.isSameCall`). Two exceptions, because the input changes
+between the prompt and the run: for `AskUserQuestion` only `questions` is
+compared (the answers are added to the input), and `ExitPlanMode` matches by
+tool (Claude Code injects the plan before hooks see it, the user may edit it,
+and `PostToolBatch` reports the model's input without it). Each matched
+`tool_use_id` is remembered (the last 256), so a call reported twice, by
+`PostToolUse` and by `PostToolBatch`, never drops a second, identical card.
+One narrow case remains: if a card was answered in the notch and Claude
+retries the identical call in its next response, a `PostToolBatch` delayed
+past that new request could drop the new card; the terminal prompt is still
+there, so nothing is decided by it.
+
+`scripts/hook-timing.sh` logs when each event fires (no inputs or outputs,
+only tool names, IDs and input hashes) for one session started with
+`claude --settings`, to check these rules against a new Claude Code version.
 
 ## Impact notes
 
@@ -317,9 +366,12 @@ it can never make one disappear or approve anything on its own.
 **A card leaves the list when its request is no longer waiting:**
 
 1. the user answers in the notch;
-2. Claude Code ends the hook (answered in the terminal): the socket reaches EOF;
+2. Claude Code ends the hook: the socket reaches EOF. It does so when the turn
+   is interrupted (Esc, or a refusal without feedback in the terminal), not
+   when the prompt is allowed elsewhere (below);
 3. a later hook event proves it was handled (tool ran, failed, was denied, the
-   turn ended, a new prompt was sent, the session ended);
+   agent's batch of tool calls resolved, the turn ended, a new prompt was
+   sent, the session ended);
 4. the waiting relay notices its parent died and exits within a second;
 5. after one hour, the hook timeout.
 
@@ -403,8 +455,10 @@ and the hook log):
    still show the normal terminal prompt and dialog (not a denial), with and
    without the relay link present.
 2. App paused: same.
-3. A request answered in the terminal while its card waits (the hook is
-   cancelled): the tool runs as answered; no extra denial.
+3. A request answered in the terminal while its card waits (the hook keeps
+   running until a later event drops the card, see [Requests decided
+   elsewhere](#requests-decided-elsewhere)): the tool runs as answered; no
+   extra denial.
 4. Kill the waiting relay (`pkill -f unibrow-hook`): what Claude Code does
    now (prompt, or deny).
 5. A short hook timeout (edit `timeout` in a local copy of `hooks.json`):

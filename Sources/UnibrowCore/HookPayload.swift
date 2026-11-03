@@ -13,6 +13,10 @@ public enum HookEvent: String, Sendable, Codable, CaseIterable {
     case postToolUse = "PostToolUse"
     case postToolUseFailure = "PostToolUseFailure"
     case permissionDenied = "PermissionDenied"
+    /// Every tool call of one model response has resolved (run, failed or
+    /// refused), before the next model request. Lists the calls in
+    /// `tool_calls`, with the input the model wrote.
+    case postToolBatch = "PostToolBatch"
     case userPromptSubmit = "UserPromptSubmit"
     case stop = "Stop"
     case sessionEnd = "SessionEnd"
@@ -50,8 +54,8 @@ public enum HookEvent: String, Sendable, Codable, CaseIterable {
     public var needsSessionDetails: Bool {
         switch self {
         case .permissionRequest, .elicitation, .stop, .stopFailure, .notification: true
-        case .postToolUse, .postToolUseFailure, .permissionDenied, .userPromptSubmit, .sessionEnd,
-             .subagentStart, .subagentStop: false
+        case .postToolUse, .postToolUseFailure, .permissionDenied, .postToolBatch, .userPromptSubmit,
+             .sessionEnd, .subagentStart, .subagentStop: false
         }
     }
 }

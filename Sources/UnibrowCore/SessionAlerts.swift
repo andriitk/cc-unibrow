@@ -175,7 +175,7 @@ public struct SessionAlerts: Sendable, Equatable {
         switch event {
         case .userPromptSubmit, .stop, .sessionEnd, .permissionRequest, .elicitation:
             remove(sessionID: sessionID)
-        case .postToolUse, .postToolUseFailure, .permissionDenied:
+        case .postToolUse, .postToolUseFailure, .permissionDenied, .postToolBatch:
             // Work goes on, so the agent got its input; a failure stays
             // until the user sees it.
             if let alert = items.first(where: { $0.sessionID == sessionID }), !alert.isFailure {

@@ -14,8 +14,10 @@ public struct PendingRequest: Sendable, Identifiable, Hashable {
     public var branch: String?
     /// PID of the terminal or IDE app the session runs in, if known.
     public var hostPID: Int32?
-    /// Set when a subagent (not the main conversation) asks.
+    /// Set when a subagent (not the main conversation) asks: its kind and
+    /// its `agent_id`. Tool events resolve a request only from the same agent.
     public var agentType: String?
+    public var agentID: String?
     /// Root of the git repository the session works in, if any.
     public var projectRoot: String?
     /// Set for an MCP elicitation (an `Elicitation` hook), which waits in the
@@ -57,6 +59,7 @@ public struct PendingRequest: Sendable, Identifiable, Hashable {
             receivedAt: receivedAt
         )
         agentType = payload.agentType
+        agentID = payload.agentID
     }
 
     /// Builds a request from an `Elicitation` hook payload. The tool name is
@@ -75,6 +78,7 @@ public struct PendingRequest: Sendable, Identifiable, Hashable {
         )
         self.elicitation = elicitation
         agentType = payload.agentType
+        agentID = payload.agentID
     }
 
     /// When the relay stops waiting and Claude Code asks in the terminal
@@ -100,6 +104,29 @@ public struct PendingRequest: Sendable, Identifiable, Hashable {
         elicitation == nil && toolName == UserQuestion.toolName && UserQuestion.parse(toolInput) != nil
     }
 
+    /// Whether a tool call reported by a later hook event (`PostToolUse`,
+    /// `PostToolBatch`, …) is the call this request asked about. Claude Code
+    /// gives `PermissionRequest` no `tool_use_id`, so the call is recognised
+    /// by its tool and input, except where the input legitimately changes
+    /// between the prompt and the run:
+    /// - `AskUserQuestion`: the answers are added to the input (by the
+    ///   terminal dialog or a hook's `updatedInput`); the questions stay.
+    /// - `ExitPlanMode`: Claude Code injects the plan before hooks see it, the
+    ///   user may edit it, and `PostToolBatch` reports the model's input
+    ///   without it. One agent waits on at most one plan, so the tool is enough.
+    public func isSameCall(toolName: String, input: JSONValue) -> Bool {
+        guard elicitation == nil, self.toolName == toolName else { return false }
+        switch toolName {
+        case "ExitPlanMode":
+            return true
+        case UserQuestion.toolName:
+            if let questions = toolInput["questions"] { return input["questions"] == questions }
+            return toolInput == input
+        default:
+            return toolInput == input
+        }
+    }
+
     /// Project name shown in the UI: the last path component of `cwd`.
     public var projectName: String {
         let name = URL(filePath: cwd).lastPathComponent
@@ -111,14 +138,22 @@ public struct PendingRequest: Sendable, Identifiable, Hashable {
 ///
 /// A request leaves the queue in one of these ways:
 /// - the user answers it in the notch (`remove(id:)`);
-/// - its hook connection closes, because Claude Code cancelled the hook after
-///   the user answered in the terminal (`remove(id:)`);
-/// - a later hook event shows it was answered elsewhere (`resolve(after:)`);
+/// - its hook connection closes, because Claude Code ended the hook (the turn
+///   was interrupted, the session ended) (`remove(id:)`); an approval
+///   elsewhere does not end it;
+/// - a later hook event shows it was answered elsewhere (`resolve(after:)`):
+///   its tool call ran, failed or was refused, the agent's batch of tool
+///   calls resolved, or the turn ended;
 /// - it outlives `maxAge` (`removeExpired(now:)`).
 ///
 /// The type is a plain value with no I/O so the rules can be unit tested.
 public struct ApprovalQueue: Sendable, Equatable {
     public private(set) var requests: [PendingRequest] = []
+    /// `tool_use_id`s that already resolved a request, newest last, so the
+    /// same call reported twice (by `PostToolUse` and by `PostToolBatch`)
+    /// never resolves a second, identical request.
+    private var resolvedCalls: [String] = []
+    static let resolvedCallsLimit = 256
 
     public init(requests: [PendingRequest] = []) {
         self.requests = requests
@@ -163,21 +198,50 @@ public struct ApprovalQueue: Sendable, Equatable {
             return []
 
         case .postToolUse, .postToolUseFailure, .permissionDenied:
-            // The tool ran, failed or was denied, so its prompt was answered.
-            // `PermissionRequest` has no `tool_use_id`, so match the oldest
-            // request with the same tool and the same input.
+            // The tool ran, failed or was denied by auto mode, so its prompt
+            // was answered. Only after the tool finished: Claude Code fires no
+            // hook between a decision and the tool's end.
             guard let toolName = payload.toolName else { return [] }
-            let input = payload.toolInput ?? .object([:])
-            guard let index = requests.firstIndex(where: {
-                $0.sessionID == sessionID && $0.toolName == toolName && $0.toolInput == input
-            }) else { return [] }
-            return [requests.remove(at: index)]
+            let call = Call(toolName: toolName, input: payload.toolInput ?? .object([:]), toolUseID: payload.toolUseID)
+            return resolve(call, sessionID: sessionID, agentID: payload.agentID).map { [$0] } ?? []
+
+        case .postToolBatch:
+            // Every call of the agent's last response resolved, including
+            // one refused in the terminal with feedback, which fires no
+            // `PostToolUse`. Calls already matched above are skipped.
+            let calls = payload.raw["tool_calls"]?.arrayValue ?? []
+            return calls.compactMap { entry in
+                guard let toolName = entry["tool_name"]?.stringValue else { return nil }
+                let call = Call(toolName: toolName, input: entry["tool_input"] ?? .object([:]), toolUseID: entry["tool_use_id"]?.stringValue)
+                return resolve(call, sessionID: sessionID, agentID: payload.agentID)
+            }
 
         case .userPromptSubmit, .stop, .stopFailure, .sessionEnd:
             // The turn is over (or a new one started): nothing from this
             // session can still be waiting.
             return removeAll { $0.sessionID == sessionID }
         }
+    }
+
+    private struct Call {
+        let toolName: String
+        let input: JSONValue
+        let toolUseID: String?
+    }
+
+    /// Removes the oldest request of the same session and agent that asked
+    /// about `call`, unless that `tool_use_id` already resolved one.
+    private mutating func resolve(_ call: Call, sessionID: String, agentID: String?) -> PendingRequest? {
+        if let id = call.toolUseID, resolvedCalls.contains(id) { return nil }
+        guard let index = requests.firstIndex(where: {
+            $0.sessionID == sessionID && $0.agentID == agentID
+                && $0.isSameCall(toolName: call.toolName, input: call.input)
+        }) else { return nil }
+        if let id = call.toolUseID {
+            resolvedCalls.append(id)
+            if resolvedCalls.count > Self.resolvedCallsLimit { resolvedCalls.removeFirst() }
+        }
+        return requests.remove(at: index)
     }
 
     /// Removes every request from a session, e.g. when its process exited.

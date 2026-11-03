@@ -1,5 +1,5 @@
 {
-  "description": "Route Claude Code permission prompts and MCP elicitations to the Unibrow notch app, tell it when a prompt was answered in the terminal, show failed turns and agents waiting for input, and report subagents starting and stopping.",
+  "description": "Route Claude Code permission prompts and MCP elicitations to the Unibrow notch app, tell it when a prompt was answered in the terminal or tool calls resolved, show failed turns and agents waiting for input, and report subagents starting and stopping.",
   "hooks": {
     "SessionStart": [
       {
@@ -48,6 +48,13 @@
       {
         "hooks": [
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/unibrow-hook\" PermissionDenied", "async": true, "timeout": 5 }
+        ]
+      }
+    ],
+    "PostToolBatch": [
+      {
+        "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/unibrow-hook\" PostToolBatch", "async": true, "timeout": 5 }
         ]
       }
     ],
