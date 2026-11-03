@@ -16,6 +16,7 @@ public struct ImpactNote: Sendable, Hashable, Codable {
     /// `nil` when no line has any text.
     public init?(lines: [String]) {
         let shown = lines
+            .lazy
             .map { ElicitationRequest.display(ToolSummary.firstLine(of: $0), limit: Self.maxLineLength).text }
             .filter { !$0.isEmpty }
             .prefix(Self.maxLines)
@@ -407,20 +408,26 @@ struct RepositoryGitConfig: Equatable {
         guard fields.count % 2 == 1, fields.last?.isEmpty == true else { return nil }
         for index in stride(from: 1, to: fields.count - 1, by: 2) {
             let entry = fields[index]
-            let key = String(entry.prefix { $0 != "\n" })
             let value = entry.drop { $0 != "\n" }.dropFirst().lowercased()
-            // Section and variable names are case-insensitive (git prints
-            // them lowercased); a subsection (the driver name) is not.
-            let lowered = key.lowercased()
-            if lowered == "extensions.partialclone" {
+            // `section[.subsection].variable`. Section and variable are
+            // case-insensitive; the subsection (a driver or remote name) is
+            // not and may itself contain dots. Split once, no index math.
+            let parts = entry.prefix { $0 != "\n" }.split(separator: ".", omittingEmptySubsequences: false)
+            guard let first = parts.first, let last = parts.last else { continue }
+            let section = first.lowercased(), variable = last.lowercased()
+            let subsection: String? = parts.count >= 3 ? parts[1..<(parts.count - 1)].joined(separator: ".") : nil
+            switch (section, variable) {
+            case ("extensions", "partialclone") where subsection == nil:
                 isPartialClone = true
-            } else if lowered.hasPrefix("remote."), lowered.hasSuffix(".promisor"),
-                      !["false", "no", "off", "0"].contains(value) {
-                isPartialClone = true
-            } else if lowered.hasPrefix("filter."), let dot = key.lastIndex(of: "."),
-                      ["clean", "smudge", "process"].contains(lowered[lowered.index(after: dot)...]) {
-                let name = String(key[key.index(key.startIndex, offsetBy: "filter.".count)..<dot])
-                if !filterDrivers.contains(name) { filterDrivers.append(name) }
+            case ("remote", "promisor") where subsection != nil:
+                if !["false", "no", "off", "0"].contains(value) { isPartialClone = true }
+            case ("filter", "clean"), ("filter", "smudge"), ("filter", "process"):
+                // `filter.clean` has no driver name and names no driver; an
+                // empty name (`filter..clean`) is kept, and makes
+                // `disablingFilters` refuse, so status is skipped.
+                if let subsection, !filterDrivers.contains(subsection) { filterDrivers.append(subsection) }
+            default:
+                break
             }
         }
     }

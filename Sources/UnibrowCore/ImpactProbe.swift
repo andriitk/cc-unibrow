@@ -132,9 +132,10 @@ public struct ImpactProbe: Sendable {
     }
 
     static func dispatchTime(for deadline: ContinuousClock.Instant) -> DispatchTime {
-        let left = ContinuousClock.now.duration(to: deadline)
-        let nanoseconds = max(0, left.components.seconds) * 1_000_000_000 + max(0, left.components.attoseconds / 1_000_000_000)
-        return .now() + .nanoseconds(Int(min(nanoseconds, Int64(Int32.max))))
+        // In seconds as a Double: no integer overflow for a far deadline,
+        // and no 2-second cap (Int32 nanoseconds) on a long one.
+        let seconds = ContinuousClock.now.duration(to: deadline) / .seconds(1)
+        return .now() + min(max(0, seconds), 3_600)
     }
 
     static func entry(at path: String) -> Entry? {

@@ -298,6 +298,34 @@ struct CommandImpactTests {
         #expect(Self.note("rm -rf README.md", cwd: work, projectRoot: work, probe: probe) == ["\(work)/README.md: file"])
     }
 
+    @Test("Odd config keys never crash the parser", arguments: [
+        ("filter.clean", [String]()),
+        ("filter..clean", [""]),
+        ("filter.ÄÖ.clean", ["ÄÖ"]),
+        ("filter.ǅ.process", ["ǅ"]),
+        ("FILTER.İx.SMUDGE", ["İx"]),
+        ("filter.a.b.clean", ["a.b"]),
+        ("", []),
+        ("filter.a\nb.clean", []),
+        (".", []),
+        ("..", []),
+        ("filter.", []),
+        ("filter...", []),
+        ("filter.x.", []),
+    ] as [(String, [String])])
+    func oddConfigKeys(key: String, drivers: [String]) throws {
+        let config = try #require(RepositoryGitConfig(listing: "local\0\(key)\nvalue\0"))
+        #expect(config.filterDrivers == drivers)
+        if drivers == [""] { #expect(config.disablingFilters == nil) }
+    }
+
+    @Test("Partial-clone keys need their exact shape")
+    func partialCloneKeys() {
+        #expect(RepositoryGitConfig(listing: "local\0extensions.partialClone\norigin\0")?.isPartialClone == true)
+        #expect(RepositoryGitConfig(listing: "local\0remote.promisor\ntrue\0")?.isPartialClone == false)
+        #expect(RepositoryGitConfig(listing: "local\0remote.a.b.promisor\ntrue\0")?.isPartialClone == true)
+    }
+
     @Test("Reading the config listing: drivers, partial clones, odd input")
     func configListing() throws {
         let listing = [
