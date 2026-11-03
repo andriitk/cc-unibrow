@@ -24,6 +24,9 @@ public import Foundation
 ///   is unchanged; `agent_id` and `agent_type` travel in `payload` as Claude
 ///   Code wrote them.
 ///
+/// Optional fields an older reader may ignore are added without a new
+/// version: `impact` (a Bash `PermissionRequest` only) is one.
+///
 /// A message without `version` is read as version 1. A receiver accepts every
 /// version in `supportedVersions` and drops anything newer (the relay then
 /// falls back to the terminal).
@@ -64,6 +67,11 @@ public struct HookMessage: Sendable, Codable, Hashable {
     /// `Elicitation` only: the form's property names in the order the server
     /// wrote them, read from the raw input (decoded objects lose their order).
     public var propertyOrder: [String]?
+    /// `PermissionRequest` for a risky Bash command only: what it would
+    /// affect, looked up by the relay in the session's folder (see
+    /// `CommandImpact`). Optional and additive: an app that does not know the
+    /// field ignores it.
+    public var impact: ImpactNote?
 
     public init(
         event: HookEvent,
@@ -72,6 +80,7 @@ public struct HookMessage: Sendable, Codable, Hashable {
         projectRoot: String? = nil,
         ancestorPIDs: [Int32]? = nil,
         propertyOrder: [String]? = nil,
+        impact: ImpactNote? = nil,
         version: Int = WireProtocol.version
     ) {
         self.version = version
@@ -81,13 +90,14 @@ public struct HookMessage: Sendable, Codable, Hashable {
         self.projectRoot = projectRoot
         self.ancestorPIDs = ancestorPIDs
         self.propertyOrder = propertyOrder
+        self.impact = impact
     }
 
     /// Whether this app understands the message's wire version.
     public var isSupported: Bool { WireProtocol.supportedVersions.contains(version) }
 
     private enum CodingKeys: String, CodingKey {
-        case version, event, payload, branch, projectRoot, ancestorPIDs, propertyOrder
+        case version, event, payload, branch, projectRoot, ancestorPIDs, propertyOrder, impact
     }
 
     public init(from decoder: any Decoder) throws {
@@ -100,6 +110,8 @@ public struct HookMessage: Sendable, Codable, Hashable {
         projectRoot = try container.decodeIfPresent(String.self, forKey: .projectRoot)
         ancestorPIDs = try container.decodeIfPresent([Int32].self, forKey: .ancestorPIDs)
         propertyOrder = try container.decodeIfPresent([String].self, forKey: .propertyOrder)
+        // Information only: a malformed note is dropped, never the request.
+        impact = (try? container.decodeIfPresent(ImpactNote.self, forKey: .impact)) ?? nil
     }
 
     /// What the relay sends for one hook invocation: the hook's raw `input`
@@ -111,11 +123,14 @@ public struct HookMessage: Sendable, Codable, Hashable {
     ///   - eventName: the hook's argument; falls back to `hook_event_name`.
     ///   - repository: looks up the git repository of the session's `cwd`.
     ///   - ancestors: the relay's process ancestry, nearest first.
+    ///   - impact: the impact note for a permission request, given the
+    ///     payload and the repository root; called for nothing else.
     public static func relayed(
         input: Data,
         eventName: String?,
         repository: (String) -> GitBranch.Repository?,
-        ancestors: () -> [Int32]
+        ancestors: () -> [Int32],
+        impact: (HookPayload, _ projectRoot: String?) -> ImpactNote? = { _, _ in nil }
     ) -> HookMessage? {
         guard let payload = try? HookPayload(data: input),
               let event = HookEvent(rawValue: eventName ?? payload.hookEventName ?? "")
@@ -130,7 +145,8 @@ public struct HookMessage: Sendable, Codable, Hashable {
             ancestorPIDs: details ? ancestors() : nil,
             propertyOrder: event == .elicitation
                 ? JSONKeyOrder.keys(in: input, at: ["requested_schema", "properties"])
-                : nil
+                : nil,
+            impact: event == .permissionRequest ? impact(payload, repo?.root) : nil
         )
     }
 }

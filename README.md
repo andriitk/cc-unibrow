@@ -122,6 +122,25 @@ URL or use an MCP tool. You see the exact command or a diff of the edit.
 - **Deny**: refuse. By default Claude stops and waits for your next message.
 - **Details**: the full, exact input. Headlines shorten long paths (`~/…`);
   *Details* never does, so you always see what will really run.
+- **Impact**: for a few risky shell commands, up to three lines on what they
+  would touch, looked up on your Mac before the card appears:
+  - `git push --force` (`-f`, `--force-with-lease`, `+branch`): the remote,
+    its host and repository (`github.com-work → org/app`), the branch, and
+    how many commits on the remote are not in your branch and would be
+    overwritten, *as of your last fetch* (nothing is fetched);
+  - `git reset --hard`, `git checkout -- .`, `git restore …`, `git clean -f`:
+    how many files with uncommitted changes, or untracked files, would go;
+  - `rm -r` / `rm -rf`: each target's real path, whether it exists, how many
+    items it holds (counting stops at 10,000; links are not followed), and
+    whether it is outside the project, your home folder or a top-level folder;
+  - `gh pr create|merge`, `gh repo delete|archive`, `gh release
+    create|delete`, `gh api -X DELETE`: which account (from a
+    `GH_TOKEN=$(gh auth token -u <login>)` prefix, otherwise gh's default
+    account) and which repository.
+
+  It is a hint, not a check: it never changes **Allow**, and when the command
+  is unclear (variables, globs, `bash -c`, loops, here documents) or the
+  lookup takes longer than 0.3 s, there is simply no Impact line.
 
 **Questions.** Claude asks you to choose. Pick one or more options, or
 **Other…** to type your own answer, then **Submit**.
@@ -155,7 +174,10 @@ send your next message there.
 Every card shows the **project**, **git branch**, a short **session tag** (so
 two terminals in the same project are easy to tell apart) and the **app** the
 session runs in. Click **Cursor ↗**, **Terminal ↗**, **PyCharm ↗**… to jump
-straight there.
+straight there. While subagents run in that session, a small **2 agents**
+label shows how many (hover for their types); it never pulses or opens the
+notch by itself, so a "Finished" row with **1 agent** means the turn ended
+but a background agent is still working.
 
 ### The terminal still works
 
@@ -202,12 +224,15 @@ gets its own card.
 and no account. Everything stays in a private local socket that only your
 user can open. See the [privacy policy](PRIVACY.md).
 
-**Does it need special permissions?** No. It never reads your project files,
-so macOS never asks about Documents or Desktop. Accessibility is only for the
-optional *Exact Window Focus*.
+**Does it need special permissions?** No. The app never reads your project
+files, so macOS never asks about Documents or Desktop; the hook, which runs
+inside your terminal with its access, reads the git branch and, for the
+*Impact* line, runs read-only `git` commands and counts files. Accessibility
+is only for the optional *Exact Window Focus*.
 
 **Does it slow Claude Code down?** No. Hooks that only report events run in
-the background and finish in milliseconds.
+the background and finish in milliseconds. A risky shell command (see
+*Impact*) waits at most 0.3 s more for its lookups before the card appears.
 
 **Can I use it only in some projects?** Yes: install the plugin per project
 with `claude plugin install cc-unibrow@cc-unibrow --scope project` instead of
@@ -217,6 +242,14 @@ user-wide.
 starts, so restart sessions that were open before you installed Unibrow. In
 *auto* and *bypass* permission modes Claude rarely asks at all, so there is
 less to show.
+
+**Can other plugins or mods get in the way?** Yes. Unibrow is one hook among
+others: another plugin's or your own `PermissionRequest` hook runs at the same
+time, and a *mod* (a plugin with JavaScript hooks that run inside Claude Code)
+can approve, refuse or answer a tool call before any permission prompt, so
+then no card appears, or a card may leave early. Mods are not sandboxed and
+run with your permissions, so install only ones you trust. Details in
+[SECURITY.md](SECURITY.md#other-hooks-plugins-and-mods).
 
 ## Troubleshooting
 

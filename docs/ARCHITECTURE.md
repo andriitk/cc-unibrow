@@ -16,8 +16,8 @@ Unibrow has three parts: a Claude Code **plugin** that registers hooks, a tiny
 | Path | Role |
 |---|---|
 | `plugin/` | The Claude Code plugin: `hooks/hooks.json` and `bin/unibrow-hook`, a POSIX shell shim. The shim execs the relay that the app links on launch, so the plugin never needs to know where the app is installed. Without the app it is a no-op (and says so once per session). |
-| `Sources/UnibrowHook` | `unibrow-hook`, the relay. Reads the hook JSON from stdin, adds session details (git branch, repository root, process ancestry), sends it to the app, and for a permission request waits for the decision and prints it in Claude Code's format. |
-| `Sources/UnibrowCore` | Everything worth testing, with no UI: wire protocol, hook payloads and output, the pending-request queue, finished-session notices, tool summaries, questions, window-title matching, git and process lookups. |
+| `Sources/UnibrowHook` | `unibrow-hook`, the relay. Reads the hook JSON from stdin, adds session details (git branch, repository root, process ancestry, and for a risky Bash request an impact note), sends it to the app, and for a permission request waits for the decision and prints it in Claude Code's format. |
+| `Sources/UnibrowCore` | Everything worth testing, with no UI: wire protocol, hook payloads and output, the pending-request queue, finished-session notices, running subagents, tool summaries, risky-command recognition and impact notes, questions, window-title matching, git and process lookups. |
 | `Sources/Unibrow` | The app: socket server, notch panel, SwiftUI views, menu bar, window focus. Kept thin. |
 | `.claude-plugin/marketplace.json` | Makes the repository itself a plugin marketplace. |
 | `install.sh`, `scripts/` | Installer, app bundling, icon rendering, demo requests. |
@@ -33,7 +33,7 @@ Unibrow has three parts: a Claude Code **plugin** that registers hooks, a tiny
 | `PostToolUse`, `PostToolUseFailure`, `PermissionDenied` | async | A request was answered elsewhere: drop its card. |
 | `UserPromptSubmit`, `SessionEnd` | async | The session moved on: drop its cards, alert and “finished” notice. |
 | `Stop` | async | The turn ended: drop leftover cards, show a “finished” notice. |
-| `SubagentStart`, `SubagentStop` | async | Passed through with `agent_id` and `agent_type` (wire version 2). Unibrow shows nothing for them yet. |
+| `SubagentStart`, `SubagentStop` | async | Passed through with `agent_id` and `agent_type` (wire version 2). Counts running subagents per session (below). |
 | `SessionStart` | sync, 5 s | Installs a missing app, or updates one older than the plugin (below), unless a compatible host app provides the socket. |
 
 ## App install and updates (bootstrap)
@@ -129,7 +129,8 @@ hook ◀──DecisionMessage── app      PermissionRequest, Elicitation
 `HookMessage` carries the raw hook payload untouched, so fields Claude Code adds
 later survive (including `agent_id` and `agent_type`, set when a hook fires
 inside a subagent), plus `branch`, `projectRoot` and `ancestorPIDs` gathered
-by the relay. `DecisionMessage` is one of `allow`, `allowAlways` (forwards Claude Code's
+by the relay, and for a risky Bash `PermissionRequest` an optional `impact`
+(`{"lines": ["…"]}`, at most three lines, see [Impact notes](#impact-notes)). `DecisionMessage` is one of `allow`, `allowAlways` (forwards Claude Code's
 own `permission_suggestions` as `updatedPermissions`), `allowWithInput` (question
 answers), `deny` (with `interrupt`), `elicitation` (`action` accept, decline
 or cancel, with `content` for a form) and `passthrough`. The relay prints a
@@ -145,14 +146,89 @@ Every message carries `version`, the sender's wire version
 | Version | Changes |
 |---|---|
 | 1 | The original protocol: `HookMessage` (`version`, `event`, `payload`, optional `branch`, `projectRoot`, `ancestorPIDs`, `propertyOrder`) and `DecisionMessage` (`version`, `decision`). Events `PermissionRequest`, `Elicitation`, `PostToolUse`, `PostToolUseFailure`, `PermissionDenied`, `UserPromptSubmit`, `Stop`, `SessionEnd`, `StopFailure`, `Notification`. |
-| 2 | Adds the events `SubagentStart` and `SubagentStop`. The message shape is unchanged. |
+| 2 | Adds the events `SubagentStart` and `SubagentStop`. The message shape is unchanged. Later, still version 2: the optional `HookMessage.impact`. |
 
 A message without `version` is read as version 1. The app accepts versions 1
 to its own (`WireProtocol.supportedVersions`) and closes the connection on
 anything else or on an event it does not know, so the relay prints nothing
 and Claude Code asks in the terminal. Bump the version when a message can
 carry something an older reader would not understand; new optional fields
-that an older reader may safely ignore do not need a bump.
+that an older reader may safely ignore do not need a bump. `impact` is such a
+field: `JSONDecoder` ignores keys a reader does not know, so an older app or
+host app shows the card without it, and a newer app decodes it with `try?`,
+so a malformed note drops the note, never the request.
+
+## Impact notes
+
+For a `PermissionRequest` of `Bash`, the relay asks `CommandImpact` for a
+short note before it sends the request. Everything is in the core:
+
+- `ShellWords` reads the command into simple commands and words (quotes,
+  escapes, `~` and `$HOME`, chains with `&&`, `||`, `;`, `|`, `&`, newlines,
+  redirections dropped). It gives up on subshells, groups, here documents,
+  process substitution and control keywords, and marks a word that the shell
+  would change (another variable, `$(…)`, a glob) as not literal.
+- `RiskyCommand.recognize` follows `cd`, `git -C`, `NAME=value` prefixes,
+  `export`, and `sudo`/`env`/`command`/`nohup`/`time`/`exec` without options,
+  and recognises force pushes, `reset --hard`, `checkout`/`restore` of paths,
+  `clean -f`, `rm -r` (options only before the first operand, since BSD and
+  GNU `rm` differ after it) and `gh pr create|merge`, `repo delete|archive`,
+  `release create|delete`, `api -X DELETE`. Anything it is not sure about is
+  not recognised: no note is better than a wrong one.
+- A `cd`/`pushd` moves later commands only when `&&` follows it, it is not
+  in a pipeline and no `||` before it in its list could skip it, and only
+  until that `&&` chain ends (`cd x && rm a; rm b`: `b` runs whether or not
+  `cd` worked, so its folder is unknown). Otherwise the folder is unknown and
+  relative targets get no note. `popd` and `pushd` alone make it unknown, and
+  so does a `cd` behind `env`, `sudo`, `nohup`, `exec` or `time` (an
+  external `cd` does not move the shell; `command`, `builtin` and
+  `NAME=value` prefixes keep it a builtin). A
+  conditional, piped or background `export` (or an `unset`) of `GH_TOKEN`,
+  `GITHUB_TOKEN` or `GH_REPO` makes `gh` lines skip.
+- `CommandImpact.note` looks things up through `ImpactProbe` (injectable;
+  `live` runs the `git` on `PATH` with `GIT_OPTIONAL_LOCKS=0`,
+  `-c core.fsmonitor=false`, `-c core.hooksPath=/dev/null`, and uses `lstat`,
+  `realpath` and a `readdir` walk that opens folders with `O_NOFOLLOW`). The
+  relay runs before the user approves, so no lookup may start a program the
+  config names or touch the network. Every call gets
+  `-c protocol.allow=never` and `GIT_NO_LAZY_FETCH=1`. The first call in a
+  repository is `git config --list --show-scope --includes -z`
+  (`RepositoryGitConfig`): a partial clone (`extensions.partialClone`, a
+  `remote.*.promisor` not false) gets no further git call, since an older
+  git could fetch missing objects; and every filter driver with a `clean`,
+  `smudge` or `process` command in any scope is switched off for
+  `git status` (`-c filter.<name>.clean= … .required=false`), the only call
+  that could run one. `status` also gets `--ignore-submodules=all`. The whole note has a 300 ms
+  budget (`CommandImpact.budget`): a `git` still running at the deadline is
+  terminated and its fact left out; counting stops at the deadline or at
+  10,000 items and says `10,000+`. Commits that would be overwritten come
+  from local remote-tracking refs only (`rev-list --count
+  <local>..refs/remotes/<remote>/<branch>`), so the line says "as of last
+  fetch". A remote URL keeps only host and path (`RemoteURL`).
+- `ImpactNote` escapes and caps every line (3 lines, 160 characters each; a
+  long path is shortened in the middle first), both when the relay builds it
+  and when the app decodes it.
+
+The note is information only. It is not part of `ToolSummary.Review`, never
+enables or disables Allow, and is not computed for any other event or tool.
+The card shows it under an "Impact" label.
+
+## Running subagents
+
+`RunningSubagents` keeps, per session, the agents that sent `SubagentStart`
+and no `SubagentStop` (keyed by `agent_id`; a repeated start, as for a resumed
+agent or a teammate taking a new message, is the same agent). Claude Code
+starts subagents in the background by default, they "run concurrently while
+you continue working", and their results arrive "in a later turn"
+([subagents](https://code.claude.com/docs/en/sub-agents)). So a plain `Stop`
+or a new prompt does not clear them. What does: `SubagentStop`; `SessionEnd`;
+a `Stop`/`StopFailure` whose `background_tasks` (the session's in-flight
+tasks, per the hooks reference) lists fewer `subagent`/`teammate` tasks than
+are tracked, which drops the oldest extra entries; and six hours without any
+event from the agent (`maxAge`, a net for a missed stop). At most 64 agents
+per session and 100 sessions. The app shows the count as a chip on the
+session's cards, alerts and finished notices; it never peeks, plays a sound
+or counts toward the pending number.
 
 ## MCP elicitations
 
@@ -269,7 +345,12 @@ always available.
 **Local and private.** No network code. The socket lives in a `0700` directory
 with mode `0600`, and the server checks the peer's UID. The app never reads
 project files, so macOS never asks for access to Documents or Desktop; the relay,
-which runs inside the user's terminal, reads the git branch instead.
+which runs inside the user's terminal, reads the git branch instead, and the
+read-only impact lookups run there too.
+
+**Other hooks and mods.** Other `PermissionRequest` hooks run in parallel with
+Unibrow's, and a mod can decide a tool call before any `PermissionRequest`
+hook runs; see [SECURITY.md](../SECURITY.md#other-hooks-plugins-and-mods).
 
 ## Claude Code 2.1.299: plugin hooks fail closed
 

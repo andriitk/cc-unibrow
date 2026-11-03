@@ -28,9 +28,68 @@ instead. You will get a reply within a few days.
   hidden characters), with international hosts shown as punycode and plain
   HTTP called out. Password- and
   token-like fields are secure fields, and no value is logged.
-- **Least access.** The app never reads project files. Accessibility access is
-  optional and used only to read window titles and raise one window.
+- **Least access.** The app never reads project files; the hook, which runs in
+  your terminal, reads the git branch and, for *Impact* lines, does the
+  read-only lookups below. Accessibility access is optional and used only to
+  read window titles and raise one window.
 
 Relevant reports include: a way for another user or process to approve a
 request, a request that silently disappears without a decision, or the app
 reading or sending data it should not.
+
+## Other hooks, plugins and mods
+
+Unibrow is not the only thing that can answer a permission request, and it
+cannot see or stop the others. From the Claude Code documentation:
+
+- **Other hooks.** "When an event fires, its matching hooks run in parallel",
+  and plugin hooks "merge with your user and project hooks"
+  ([hooks reference](https://code.claude.com/docs/en/hooks)). Another
+  `PermissionRequest` hook can allow or deny the same request. The reference
+  gives a precedence order for conflicting `PreToolUse` decisions but does
+  not say how differing `PermissionRequest` decisions are resolved, so do
+  not assume Unibrow's answer is the one that counts when another hook also
+  answers.
+- **Mods** (plugins whose hooks are JavaScript functions inside Claude Code;
+  on by default, Claude Code 2.1.287 or later in the terminal). A mod's `tool.call` hook can
+  answer a tool call itself, and then "no permission prompt appears and the
+  tool doesn't run"; its `tool.check` hook decides allow, ask or deny "after
+  the `PreToolUse` hooks run, and before the permission prompt, auto mode's
+  classifier, or a `PermissionRequest` hook"
+  ([React to events with a mod](https://code.claude.com/docs/en/plugins/mods/events)).
+  So a mod can settle a request before Unibrow's hook runs: no card appears.
+- **Trust.** "A mod is code that runs with your permissions": it can read and
+  write your files, read your secrets, see every prompt and tool call, and
+  "approve a tool call before you're asked". "Mods aren't sandboxed", and a
+  process a mod starts runs outside Claude Code's sandbox
+  ([Mods overview](https://code.claude.com/docs/en/plugins/mods/overview)).
+  Install mods and plugins only from authors and marketplaces you trust;
+  `claude plugin validate <dir>` lists what a mod handles before you install
+  it.
+
+What this means for the notch: a card may not appear, or may disappear (its
+hook ended) without you answering it, because something else decided. The
+documentation does say a mod "can restyle much of Claude Code's interface, but
+not the permission prompt", so the terminal prompt itself stays Claude Code's.
+
+## Impact lines
+
+The *Impact* line on a risky Bash request is computed by the hook, in the
+session's folder, before you approve anything, with read-only lookups only:
+`git` with `GIT_OPTIONAL_LOCKS=0`, `GIT_NO_LAZY_FETCH=1`, no fsmonitor, no
+hooks (`core.hooksPath=/dev/null`) and no transport (`protocol.allow=never`)
+for `config --list`, `remote get-url`, `remote`, `rev-parse`,
+`symbolic-ref`, `rev-list --count` and `status --porcelain
+--ignore-submodules=all`, plus `lstat` and a directory walk that never
+follows symlinks and stops at 10,000 items. `git status` could run a clean
+filter or filter process, which are programs named in git config; every
+filter driver configured in any scope (git-lfs included) is switched off for
+that call, so counts for filtered files may be approximate. In a partial
+clone (`extensions.partialClone`, or a `remote.*.promisor` remote), where
+git could fetch missing objects, no git lookup runs at all. The other
+lookups read refs, config and objects only. No
+fetch, no network. Everything stops at a 0.3 s budget, and a failed or slow
+lookup only leaves the line out. It is information: it never enables, blocks
+or delays Allow, and the review rules (“Show full …”) are unchanged. Remote
+URLs are reduced to host and repository path; user names and tokens in them
+are never shown. Lines are escaped like any other card text.

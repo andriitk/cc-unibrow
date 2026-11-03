@@ -111,6 +111,57 @@ struct WireVersionTests {
         #expect(finished.count == 1)
     }
 
+    @Test("The impact note survives the wire; the version stays 2")
+    func impactRoundTrip() throws {
+        let note = try #require(ImpactNote(lines: ["Force push to origin, branch main", "2 commits on origin/main not in main would be overwritten (as of last fetch)"]))
+        let message = HookMessage(event: .permissionRequest, payload: .object(["session_id": .string("s1")]), impact: note)
+        let decoded = try WireProtocol.unframe(HookMessage.self, from: WireProtocol.frame(message).dropLast())
+        #expect(decoded.impact == note)
+        #expect(decoded.version == 2)
+        #expect(decoded == message)
+    }
+
+    @Test("A message without impact, or with a malformed one, still decodes", arguments: [
+        #"{"event":"PermissionRequest","payload":{"session_id":"s1"},"version":2}"#,
+        #"{"event":"PermissionRequest","payload":{"session_id":"s1"},"version":2,"impact":{"lines":[]}}"#,
+        #"{"event":"PermissionRequest","payload":{"session_id":"s1"},"version":2,"impact":{"lines":5}}"#,
+        #"{"event":"PermissionRequest","payload":{"session_id":"s1"},"version":2,"impact":"rm -rf /"}"#,
+    ])
+    func impactOptional(line: String) throws {
+        let message = try WireProtocol.unframe(HookMessage.self, from: Data(line.utf8))
+        #expect(message.impact == nil)
+        #expect(message.event == .permissionRequest)
+    }
+
+    @Test("A note from the wire is escaped and capped again on decode")
+    func impactSanitizedOnDecode() throws {
+        let long = String(repeating: "a", count: 1_000)
+        let line = #"{"event":"PermissionRequest","payload":{},"impact":{"lines":["x\u001b[2Jy","\#(long)","3","4"]}}"#
+        let impact = try #require(try WireProtocol.unframe(HookMessage.self, from: Data(line.utf8)).impact)
+        #expect(impact.lines.count == ImpactNote.maxLines)
+        #expect(impact.lines[0] == "x\\u{1B}[2Jy")
+        #expect(impact.lines[1].count == ImpactNote.maxLineLength + 1)
+    }
+
+    @Test("The relay asks for an impact note for permission requests only")
+    func relayImpactOnlyForPermissionRequests() throws {
+        let input = Data(#"{"session_id":"s1","cwd":"/p","tool_name":"Bash","tool_input":{"command":"rm -rf x"}}"#.utf8)
+        let note = ImpactNote(lines: ["x"])
+        for event in HookEvent.allCases {
+            var asked: String??
+            let message = HookMessage.relayed(
+                input: input,
+                eventName: event.rawValue,
+                repository: { _ in GitBranch.Repository(root: "/root", branch: "main") },
+                ancestors: { [] },
+                impact: { _, root in asked = .some(root); return note }
+            )
+            #expect(message?.impact == (event == .permissionRequest ? note : nil), "\(event)")
+            #expect((asked != nil) == (event == .permissionRequest), "\(event)")
+            if event == .permissionRequest { #expect(asked == .some("/root")) }
+        }
+    }
+
     @Test("hooks.json registers every event the relay handles, the new ones async")
     func hooksJSONRegistersEvents() throws {
         let url = URL(filePath: #filePath)

@@ -39,6 +39,10 @@ struct RequestCard: View {
                     .lineLimit(2)
             }
 
+            if let impact = request.impact {
+                ImpactSection(note: impact)
+            }
+
             if Self.hasNotes(review) {
                 ReviewNotes(review: review)
             }
@@ -122,6 +126,35 @@ struct RequestCard: View {
         case "ExitPlanMode": "plan"
         default: "input"
         }
+    }
+}
+
+// MARK: - Impact
+
+/// What a risky command would affect, looked up by the relay. Information
+/// only: it changes nothing about Allow.
+private struct ImpactSection: View {
+    let note: ImpactNote
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Label("Impact", systemImage: "scope")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.orange)
+                .fixedSize()
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(Array(note.lines.enumerated()), id: \.offset) { _, line in
+                    Text(line)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.8))
+                        .lineLimit(2)
+                        .textSelection(.enabled)
+                }
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 
