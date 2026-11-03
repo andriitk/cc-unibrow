@@ -103,7 +103,8 @@ public enum RiskyCommand: Sendable, Equatable {
                 environment[name] = value
                 words = words.dropFirst()
             }
-            guard let program = unwrap(&words, environment: &environment), program.isLiteral else {
+            var inShell = true
+            guard let program = unwrap(&words, environment: &environment, inShell: &inShell), program.isLiteral else {
                 if words.isEmpty {
                     // `NAME=value` alone changes the variable for later
                     // commands only if it was exported before; unknown.
@@ -118,6 +119,13 @@ public enum RiskyCommand: Sendable, Equatable {
             let arguments = Array(words.dropFirst())
 
             switch program.text {
+            case _ where !inShell && ["cd", "pushd", "popd", "export", "unset"].contains(program.text):
+                // An external `cd` or `export` (`env cd /x`, `sudo cd /x`)
+                // changes nothing for the shell, so what follows does not
+                // move; not knowing what such a line meant, give up on the
+                // folder and on those variables.
+                directory = nil
+                for argument in arguments { unknownVariables.insert(assignment(argument)?.0 ?? argument.text) }
             case "cd", "pushd":
                 // `pushd` alone swaps with the stack; `cd` alone goes home.
                 let moved = program.text == "pushd" && arguments.isEmpty
@@ -230,14 +238,25 @@ public enum RiskyCommand: Sendable, Equatable {
     /// Skips `sudo`, `env`, `command`, `nohup`, `time`, `exec`, `builtin`
     /// in front of the real command. `nil` if a wrapper has options this
     /// reader does not follow.
-    static func unwrap(_ words: inout ArraySlice<ShellWords.Word>, environment: inout [String: ShellWords.Word]) -> ShellWords.Word? {
+    ///
+    /// - Parameter inShell: set to false when the command does not run as
+    ///   a shell builtin: `sudo`, `env` and `nohup` start an external
+    ///   program (an external `cd` changes nothing for the shell), and
+    ///   `exec`/`time` are not followed. Only `command` and `builtin` keep it.
+    static func unwrap(
+        _ words: inout ArraySlice<ShellWords.Word>,
+        environment: inout [String: ShellWords.Word],
+        inShell: inout Bool
+    ) -> ShellWords.Word? {
         while let first = words.first {
             guard first.isLiteral else { return first }
             switch first.text {
             case "sudo", "command", "nohup", "time", "exec", "builtin":
+                if first.text != "command", first.text != "builtin" { inShell = false }
                 words = words.dropFirst()
                 if words.first?.text.hasPrefix("-") == true { return nil }
             case "env":
+                inShell = false
                 words = words.dropFirst()
                 while let next = words.first, let (name, value) = assignment(next) {
                     environment[name] = value

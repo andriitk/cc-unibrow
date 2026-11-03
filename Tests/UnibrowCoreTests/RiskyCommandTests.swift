@@ -131,6 +131,27 @@ struct RiskyCommandTests {
         #expect(Self.targets(line) == expected)
     }
 
+    @Test("A cd behind a wrapper that runs an external program does not move the shell", arguments: [
+        "env cd /x && rm -rf build", "sudo cd /x && rm -rf build", "nohup cd /x && rm -rf build",
+        "exec cd /x && rm -rf build", "time cd /x && rm -rf build", "env FOO=1 cd /x && rm -rf build",
+        "env pushd /x && rm -rf build", "sudo popd && rm -rf build",
+    ])
+    func wrappedCD(line: String) {
+        #expect(Self.targets(line) == nil)
+    }
+
+    @Test("A cd that the shell itself runs still moves it", arguments: [
+        "command cd /x && rm -rf build", "builtin cd /x && rm -rf build", "FOO=1 cd /x && rm -rf build",
+    ])
+    func builtinCD(line: String) {
+        #expect(Self.targets(line) == ["/x/build"])
+    }
+
+    @Test("An export behind env or sudo is not followed")
+    func wrappedExport() {
+        #expect(Self.recognize("env export GH_TOKEN=$(gh auth token -u me); gh pr merge").isEmpty)
+    }
+
     @Test("After the && chain of a cd ends, the folder is unknown")
     func directoryAfterChain() {
         // bash: `rm -rf a` runs only if `cd sub` worked, so in sub. `rm -rf b`
