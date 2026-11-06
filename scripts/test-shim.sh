@@ -14,7 +14,7 @@ for event in PermissionRequest Elicitation PostToolUse StopFailure Notification 
     # 4 MB is far more than a pipe buffer: a shim that exits without reading
     # makes the writer fail with SIGPIPE.
     status=$( { { head -c 4194304 /dev/zero; echo "$?" >"$home/writer"; } \
-        | HOME="$home" sh "$root/plugin/bin/unibrow-hook" "$event" >"$home/out"; echo "$?"; } )
+        | HOME="$home" sh "$root/plugin/scripts/unibrow-hook" "$event" >"$home/out"; echo "$?"; } )
     writer=$(cat "$home/writer" 2>/dev/null || echo "killed by SIGPIPE")
     rm -f "$home/writer"
     if [ "$status" != 0 ] || [ "$writer" != 0 ]; then

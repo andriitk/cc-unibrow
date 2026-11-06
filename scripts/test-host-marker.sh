@@ -1,5 +1,5 @@
 #!/bin/sh
-# Checks the compatible-host marker (plugin/bin/unibrow-host): the hook shim and
+# Checks the compatible-host marker (plugin/scripts/unibrow-host): the hook shim and
 # the bootstrap leave Unibrow.app alone only while a valid marker names an
 # installed app with the stated bundle ID; a stale or forged marker is ignored.
 #
@@ -8,7 +8,7 @@
 set -eu
 
 root=$(cd "$(dirname "$0")/.." && pwd)
-bin="$root/plugin/bin"
+bin="$root/plugin/scripts"
 home=$(mktemp -d "${TMPDIR:-/tmp}/unibrow-host-test.XXXXXX")
 trap 'rm -rf "$home"' EXIT
 support="$home/Library/Application Support/cc-unibrow"

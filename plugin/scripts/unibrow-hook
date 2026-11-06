@@ -18,13 +18,17 @@ fi
 # its input", and a hook that exits with its stdin unread can look like that.
 # Exiting 0 with no output after reading it means "no decision": the normal
 # terminal prompt. (Not when run by hand from a terminal.)
-[ -t 0 ] || cat >/dev/null 2>&1 || :
+[ -t 0 ] || cat >/dev/null 2>/dev/null || :
 
 here=$(cd "$(dirname "$0")" && pwd)
 failed="${HOME}/Library/Application Support/cc-unibrow/bootstrap-failed"
 
+# Prints the hook's whole answer, one JSON line, with one command. Callers
+# pass only fixed text and checked version numbers, so nothing needs escaping.
 say() {
-    printf '{"systemMessage":"Unibrow: %s"}\n' "$1"
+    cat <<EOF
+{"systemMessage":"Unibrow: $1"}
+EOF
 }
 
 # The version this plugin ships with; the app should be at least as new.
@@ -33,10 +37,22 @@ plugin_version() {
         "$here/../.claude-plugin/plugin.json" | head -n 1
 }
 
+# True when $1 is a dotted version number such as 0.2.6.
+is_version() {
+    case "$1" in
+        "" | .* | *. | *..* | *[!0-9.]*) return 1 ;;
+    esac
+}
+
 # True when version $1 is lower than version $2 (dotted numbers).
 older_than() {
-    [ "$1" != "$2" ] &&
-        [ "$(printf '%s\n%s\n' "$1" "$2" | sort -t. -k1,1n -k2,2n -k3,3n | head -n 1)" = "$1" ]
+    [ "$1" != "$2" ] && [ "$(lowest_version "$1" "$2")" = "$1" ]
+}
+lowest_version() {
+    sort -t. -k1,1n -k2,2n -k3,3n <<EOF | head -n 1
+$1
+$2
+EOF
 }
 
 # The last automatic install or update failed less than an hour ago.
@@ -49,7 +65,8 @@ recently_failed() {
 start_bootstrap() {
     mkdir -p "${HOME}/Library/Logs"
     perl -MPOSIX -e 'POSIX::setsid(); exec @ARGV' sh "$here/unibrow-bootstrap" "$@" \
-        </dev/null >>"${HOME}/Library/Logs/cc-unibrow-bootstrap.log" 2>&1 &
+        </dev/null >>"${HOME}/Library/Logs/cc-unibrow-bootstrap.log" \
+        2>>"${HOME}/Library/Logs/cc-unibrow-bootstrap.log" &
 }
 
 [ "${1:-}" = "SessionStart" ] || exit 0
@@ -57,7 +74,7 @@ start_bootstrap() {
 # A compatible host app provides the socket instead of Unibrow.app (it wrote
 # a valid marker, see unibrow-host): leave Unibrow.app alone. Once the host
 # app is removed its marker no longer counts and the checks below resume.
-"$here/unibrow-host" >/dev/null 2>&1 && exit 0
+"$here/unibrow-host" >/dev/null 2>/dev/null && exit 0
 
 if [ -x "$relay" ]; then
     # SessionStart with the app installed: update it if it is older than
@@ -71,7 +88,7 @@ if [ -x "$relay" ]; then
     installed=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \
         "$app/Contents/Info.plist" 2>/dev/null) || exit 0
     version=$(plugin_version)
-    [ -n "$installed" ] && [ -n "$version" ] || exit 0
+    is_version "$installed" && is_version "$version" || exit 0
     if older_than "$installed" "$version"; then
         start_bootstrap "$version" --update "$app"
         say "updating the notch app from $installed to $version in the background."
@@ -87,21 +104,21 @@ for app in "${HOME}/Applications/Unibrow.app" "/Applications/Unibrow.app"; do
     fi
 done
 
-manual="curl -fsSL https://raw.githubusercontent.com/andriitk/cc-unibrow/main/install.sh | sh"
+manual="see https://github.com/andriitk/cc-unibrow#install"
 
 if recently_failed; then
-    say "could not install the app automatically (details in ~/Library/Logs/cc-unibrow-bootstrap.log). Install it with: $manual"
+    say "could not install the app automatically (details in ~/Library/Logs/cc-unibrow-bootstrap.log). To install it, $manual"
     exit 0
 fi
 
 if [ -n "${UNIBROW_NO_AUTO_INSTALL:-}" ]; then
-    say "the plugin is installed, but the Unibrow app is not. Install it with: $manual"
+    say "the plugin is installed, but the Unibrow app is not. To install it, $manual"
     exit 0
 fi
 
 # Install the app matching this plugin's version.
 version=$(plugin_version)
-[ -n "$version" ] || exit 0
+is_version "$version" || exit 0
 start_bootstrap "$version"
-say "installing the notch app in the background (one time). In a few seconds the eyebrow appears in the menu bar and approvals start showing in the notch, in this session too."
+say "installing the notch app in the background (one time). In a few seconds the eyebrow appears in the menu bar and permission prompts start showing in the notch, in this session too."
 exit 0

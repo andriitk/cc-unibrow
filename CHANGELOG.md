@@ -57,6 +57,15 @@ All notable changes to this project are documented here. The format follows
   accepts versions 1 and 2, and reads a message without a version as 1.
   The impact note travels as a new optional `impact` field, so it needs no
   new version.
+- The plugin's shell scripts moved from `plugin/bin/` to `plugin/scripts/`:
+  they are hook scripts, not commands for the Bash tool. The hooks call them
+  by their new path; nothing else changes.
+- The plugin's own messages and README no longer suggest piping the
+  installer into a shell; they link to the install and uninstall
+  instructions in the main README instead.
+- The hook script prints its one-line JSON message with a single command,
+  checks version numbers before printing them, and keeps the bootstrap's
+  output and errors in its log without merging the two streams.
 
 ### Security
 

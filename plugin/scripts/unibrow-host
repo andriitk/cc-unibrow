@@ -50,4 +50,6 @@ esac
 actual=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist" 2>/dev/null) || exit 1
 [ "$actual" = "$bundle_id" ] || exit 1
 
-printf '%s\n' "$app"
+cat <<EOF
+$app
+EOF
