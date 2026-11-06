@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-11-06
+
 ### Added
 
 - MCP server requests (elicitations) in the notch. A form shows as native
@@ -48,6 +50,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- The "Finished" header in the notch drops its check icon (the rows already
+  show one), and a project header shows its count in parentheses:
+  `my-project (2)`. The README has a new demo video and a link to the
+  website.
 - For developers: the notch views are now the `UnibrowNotchUI` library,
   and `UnibrowCore` and `UnibrowNotchUI` are library products, so another
   app can show the same notch by depending on this package. The views
