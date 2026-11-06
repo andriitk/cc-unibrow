@@ -32,7 +32,7 @@ it has no effect.
 Everything below is in this folder as plain shell scripts and JSON; nothing
 is minified or compiled.
 
-**Hooks** (`hooks/hooks.json`). Each hook runs `bin/unibrow-hook`:
+**Hooks** (`hooks/hooks.json`). Each hook runs `scripts/unibrow-hook`:
 
 | Hook | What happens |
 |---|---|
@@ -43,7 +43,7 @@ is minified or compiled.
 | `SubagentStart`, `SubagentStop` | Tells the app that a subagent started or finished (its ID and type). The Unibrow app ignores these for now. These run in the background. |
 | `SessionStart` | If the app is missing, starts the one-time install below. If the installed app is older than this plugin, starts the same process as an update. Otherwise does nothing. Also does nothing while a compatible host app provides the socket instead of Unibrow (below). |
 
-Without the app, `bin/unibrow-hook` reads the hook input to the end and
+Without the app, `scripts/unibrow-hook` reads the hook input to the end and
 exits with no output, so Claude Code treats it as "no decision" and asks as
 usual.
 
@@ -57,7 +57,7 @@ memory only (at most one hour) and writes no conversation data to disk. See the
 
 The notch is drawn by a native app, which a plugin can’t contain. When a
 session starts without the app, or with an app older than this plugin,
-`bin/unibrow-bootstrap` runs once in the background:
+`scripts/unibrow-bootstrap` runs once in the background:
 
 1. Downloads `Unibrow.zip` and `Unibrow.zip.sha256` for exactly this plugin’s
    version from this project’s
@@ -90,8 +90,8 @@ offline, Claude Code says so once and it retries after an hour.
 
 To skip automatic updates, set `UNIBROW_NO_AUTO_UPDATE=1`. To skip the
 automatic install and updates, set `UNIBROW_NO_AUTO_INSTALL=1` and install the
-app yourself from source:
-`curl -fsSL https://raw.githubusercontent.com/andriitk/cc-unibrow/main/install.sh | sh`.
+app yourself, for example from source, as described under
+[Install](https://github.com/andriitk/cc-unibrow#install) in the main README.
 
 ## Files the plugin writes
 
@@ -99,8 +99,9 @@ app yourself from source:
 - `~/Library/Application Support/cc-unibrow/` (socket, a link to the relay, install lock)
 - `~/Library/Logs/cc-unibrow-bootstrap.log` (install log)
 
-Remove them all with
-`curl -fsSL https://raw.githubusercontent.com/andriitk/cc-unibrow/main/install.sh | sh -s -- --uninstall`.
+To remove them all, see
+[Update and uninstall](https://github.com/andriitk/cc-unibrow#update-and-uninstall)
+in the main README.
 
 ## Support
 

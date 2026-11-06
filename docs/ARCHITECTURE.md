@@ -15,7 +15,7 @@ Unibrow has three parts: a Claude Code **plugin** that registers hooks, a tiny
 
 | Path | Role |
 |---|---|
-| `plugin/` | The Claude Code plugin: `hooks/hooks.json` and `bin/unibrow-hook`, a POSIX shell shim. The shim execs the relay that the app links on launch, so the plugin never needs to know where the app is installed. Without the app it is a no-op (and says so once per session). |
+| `plugin/` | The Claude Code plugin: `hooks/hooks.json` and `scripts/unibrow-hook`, a POSIX shell shim. The shim execs the relay that the app links on launch, so the plugin never needs to know where the app is installed. Without the app it is a no-op (and says so once per session). |
 | `Sources/UnibrowHook` | `unibrow-hook`, the relay. Reads the hook JSON from stdin, adds session details (git branch, repository root, process ancestry, and for a risky Bash request an impact note), sends it to the app, and for a permission request waits for the decision and prints it in Claude Code's format. |
 | `Sources/UnibrowCore` | Everything worth testing, with no UI: wire protocol, hook payloads and output, the pending-request queue, finished-session notices, running subagents, tool summaries, risky-command recognition and impact notes, questions, window-title matching, git and process lookups. |
 | `Sources/UnibrowNotchUI` | The notch's SwiftUI views: the island, request cards, question and MCP forms, alerts, finished notices. A library with no app code: it reads and acts only through `NotchHost` (below). |
@@ -41,7 +41,7 @@ Unibrow has three parts: a Claude Code **plugin** that registers hooks, a tiny
 ## App install and updates (bootstrap)
 
 On `SessionStart` the shim compares the plugin's version with the app it can
-find. With no app, it starts `plugin/bin/unibrow-bootstrap <version>`; with an
+find. With no app, it starts `plugin/scripts/unibrow-bootstrap <version>`; with an
 app older than the plugin (found through the relay link, which points into the
 bundle), it starts `unibrow-bootstrap <version> --update <app>`. Both run
 detached from the hook (new session via `setsid`, output to
@@ -79,7 +79,7 @@ on top of it. A host app announces itself with a marker file:
 | `appPath` | Absolute path of the host app's bundle, ending in `.app`. |
 | `bundleID` | The `CFBundleIdentifier` of that bundle. |
 
-`plugin/bin/unibrow-host` decides whether the marker counts. It counts only if
+`plugin/scripts/unibrow-host` decides whether the marker counts. It counts only if
 all of this holds; otherwise it is ignored as if it were absent:
 
 - `host.json` is a regular file (not a symlink) owned by the user, at most

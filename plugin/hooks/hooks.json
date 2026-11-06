@@ -4,7 +4,7 @@
     "SessionStart": [
       {
         "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/unibrow-hook\" SessionStart", "timeout": 5 }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/unibrow-hook\" SessionStart", "timeout": 5 }
         ]
       }
     ],
@@ -13,7 +13,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/unibrow-hook\" PermissionRequest",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/unibrow-hook\" PermissionRequest",
             "timeout": 3600
           }
         ]
@@ -24,7 +24,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/unibrow-hook\" Elicitation",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/unibrow-hook\" Elicitation",
             "timeout": 120
           }
         ]
@@ -33,49 +33,49 @@
     "PostToolUse": [
       {
         "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/unibrow-hook\" PostToolUse", "async": true, "timeout": 5 }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/unibrow-hook\" PostToolUse", "async": true, "timeout": 5 }
         ]
       }
     ],
     "PostToolUseFailure": [
       {
         "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/unibrow-hook\" PostToolUseFailure", "async": true, "timeout": 5 }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/unibrow-hook\" PostToolUseFailure", "async": true, "timeout": 5 }
         ]
       }
     ],
     "PermissionDenied": [
       {
         "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/unibrow-hook\" PermissionDenied", "async": true, "timeout": 5 }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/unibrow-hook\" PermissionDenied", "async": true, "timeout": 5 }
         ]
       }
     ],
     "PostToolBatch": [
       {
         "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/unibrow-hook\" PostToolBatch", "async": true, "timeout": 5 }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/unibrow-hook\" PostToolBatch", "async": true, "timeout": 5 }
         ]
       }
     ],
     "UserPromptSubmit": [
       {
         "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/unibrow-hook\" UserPromptSubmit", "async": true, "timeout": 5 }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/unibrow-hook\" UserPromptSubmit", "async": true, "timeout": 5 }
         ]
       }
     ],
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/unibrow-hook\" Stop", "async": true, "timeout": 5 }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/unibrow-hook\" Stop", "async": true, "timeout": 5 }
         ]
       }
     ],
     "StopFailure": [
       {
         "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/unibrow-hook\" StopFailure", "async": true, "timeout": 5 }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/unibrow-hook\" StopFailure", "async": true, "timeout": 5 }
         ]
       }
     ],
@@ -83,28 +83,28 @@
       {
         "matcher": "agent_needs_input",
         "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/unibrow-hook\" Notification", "async": true, "timeout": 5 }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/unibrow-hook\" Notification", "async": true, "timeout": 5 }
         ]
       }
     ],
     "SubagentStart": [
       {
         "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/unibrow-hook\" SubagentStart", "async": true, "timeout": 5 }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/unibrow-hook\" SubagentStart", "async": true, "timeout": 5 }
         ]
       }
     ],
     "SubagentStop": [
       {
         "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/unibrow-hook\" SubagentStop", "async": true, "timeout": 5 }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/unibrow-hook\" SubagentStop", "async": true, "timeout": 5 }
         ]
       }
     ],
     "SessionEnd": [
       {
         "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/unibrow-hook\" SessionEnd", "async": true, "timeout": 5 }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/unibrow-hook\" SessionEnd", "async": true, "timeout": 5 }
         ]
       }
     ]

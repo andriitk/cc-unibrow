@@ -1,5 +1,5 @@
 #!/bin/sh
-# Checks how plugin/bin/unibrow-bootstrap handles a release that is not
+# Checks how plugin/scripts/unibrow-bootstrap handles a release that is not
 # published yet (the minutes between a version bump landing on main and the
 # release workflow attaching the app). It must keep the current app, exit 0
 # and leave no failure marker, so the next session tries again.
@@ -14,7 +14,7 @@ trap 'rm -rf "$home"' EXIT
 support="$home/Library/Application Support/cc-unibrow"
 
 # v0.0.0 is never released, so GitHub answers 404.
-if ! HOME="$home" UNIBROW_BOOTSTRAP_NO_LAUNCH=1 sh "$root/plugin/bin/unibrow-bootstrap" 0.0.0 >"$home/log" 2>&1; then
+if ! HOME="$home" UNIBROW_BOOTSTRAP_NO_LAUNCH=1 sh "$root/plugin/scripts/unibrow-bootstrap" 0.0.0 >"$home/log" 2>&1; then
     cat "$home/log"
     echo "FAIL: a missing release made the bootstrap fail"
     exit 1
