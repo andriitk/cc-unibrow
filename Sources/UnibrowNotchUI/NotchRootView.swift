@@ -28,6 +28,8 @@ public struct NotchRootView: View {
         static let shoulder: CGFloat = 6
         static let peekWidth: CGFloat = 380
         static let expandedWidth: CGFloat = 500
+        /// The red of a failed session's card (`AlertSection`).
+        static let failureTint = Color(red: 1, green: 0.35, blue: 0.32)
     }
 
     private var mode: Mode {
@@ -39,6 +41,10 @@ public struct NotchRootView: View {
 
     /// Something needs the user (orange), or only "done" notices are left (green).
     private var needsAttention: Bool { !model.queue.isEmpty || !model.alerts.isEmpty }
+
+    /// The wings' colour while something needs the user: red when a session
+    /// stopped on a failure (its card is red), orange otherwise.
+    private var attentionTint: Color { model.hasFailure ? Metrics.failureTint : .orange }
 
     private var width: CGFloat {
         let notch = island.notchSize.width
@@ -120,7 +126,7 @@ public struct NotchRootView: View {
         HStack(spacing: 0) {
             HStack(spacing: 6) {
                 if needsAttention {
-                    PulsingDot()
+                    PulsingDot(tint: attentionTint)
                 } else {
                     DoneMark()
                 }
@@ -138,7 +144,7 @@ public struct NotchRootView: View {
 
             Group {
                 if needsAttention {
-                    CountBadge(count: model.queue.count + model.alerts.count)
+                    CountBadge(count: model.queue.count + model.alerts.count, tint: attentionTint)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
@@ -210,15 +216,16 @@ private struct FinishedPeekRow: View {
 }
 
 private struct PulsingDot: View {
+    var tint: Color = .orange
     @State private var isPulsing = false
 
     var body: some View {
         Circle()
-            .fill(Color.orange)
+            .fill(tint)
             .frame(width: 8, height: 8)
             .overlay(
                 Circle()
-                    .stroke(Color.orange.opacity(0.6), lineWidth: 2)
+                    .stroke(tint.opacity(0.6), lineWidth: 2)
                     .scaleEffect(isPulsing ? 2.2 : 1)
                     .opacity(isPulsing ? 0 : 1)
             )
@@ -233,6 +240,7 @@ private struct PulsingDot: View {
 
 private struct CountBadge: View {
     let count: Int
+    var tint: Color = .orange
 
     var body: some View {
         Text("\(count)")
@@ -241,7 +249,7 @@ private struct CountBadge: View {
             .foregroundStyle(.black)
             .padding(.horizontal, 7)
             .frame(minWidth: 20, minHeight: 18)
-            .background(Color.orange, in: Capsule())
+            .background(tint, in: Capsule())
             .contentTransition(.numericText())
             .accessibilityLabel("\(count) items need you")
     }

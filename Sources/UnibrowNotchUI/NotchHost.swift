@@ -50,6 +50,10 @@ public protocol NotchHost: AnyObject, Observable {
 extension NotchHost {
     /// Whether the island has anything to show.
     public var hasContent: Bool { !queue.isEmpty || !alerts.isEmpty || !finished.isEmpty }
+
+    /// Whether a session stopped on a failure (the red card): the wings
+    /// show it in red, as the card does, instead of the orange of a request.
+    public var hasFailure: Bool { alerts.items.contains(where: \.isFailure) }
 }
 
 /// What briefly peeks out of the notch: a new request, an alert, or a

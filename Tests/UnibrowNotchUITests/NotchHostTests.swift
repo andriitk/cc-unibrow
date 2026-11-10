@@ -25,6 +25,18 @@ struct NotchHostTests {
         #expect(!host.hasContent)
     }
 
+    @Test("A failed session turns the wings red; a request or an agent waiting does not")
+    func failureTint() {
+        let host = RecordingHost()
+        host.queue.append(Requests.bash)
+        host.alerts.record(SessionAlert(sessionID: "s2", cwd: "/p", kind: .needsInput(title: nil, message: "Hi")))
+        #expect(!host.hasFailure)
+        host.alerts.record(SessionAlert(sessionID: "s3", cwd: "/p", kind: .stopFailure(.other("x"), details: nil)))
+        #expect(host.hasFailure)
+        host.alerts.remove(sessionID: "s3")
+        #expect(!host.hasFailure)
+    }
+
     @Test("Each request gets its card")
     func cardKind() throws {
         #expect(CardKind(Requests.bash) == .permission)
