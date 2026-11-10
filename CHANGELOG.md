@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-11-10
+
+### Changed
+
+- The dot and the count beside the notch turn red while a session that
+  stopped on an error (rate limit, overload, sign-in, billing and others) is
+  shown, the same red as its card. Requests and other alerts keep them
+  orange.
+
 ## [0.2.6] - 2026-11-06
 
 ### Added
