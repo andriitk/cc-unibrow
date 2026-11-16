@@ -142,6 +142,21 @@ struct ApprovalReviewTests {
         #expect(ToolSummary.duration(milliseconds: 500) == "500 ms")
     }
 
+    @Test("A time limit no Claude Code sends is an unknown field, and never crashes the card")
+    func hostileTimeouts() {
+        for value in [1e300, -1, .infinity, -.infinity, .nan, 86_400_001] as [Double] {
+            let summary = ToolSummary(
+                toolName: "Bash", input: .object(["command": .string("ls"), "timeout": .number(value)]))
+            #expect(summary.footnotes.isEmpty, "\(value)")
+            #expect(summary.review.extraKeys == ["timeout"], "\(value)")
+            _ = ToolSummary.duration(milliseconds: value)
+        }
+        #expect(ToolSummary.duration(milliseconds: 1e300) == "1440 min")
+        let day = ToolSummary(
+            toolName: "Bash", input: .object(["command": .string("ls"), "timeout": .number(86_400_000)]))
+        #expect(day.footnotes == ["Stops after 1440 min"])
+    }
+
     @Test("Fields the card does not know make the detail the full input")
     func extraKeys() throws {
         // A known field with a value of another type is not understood: shown as it is, and flagged.

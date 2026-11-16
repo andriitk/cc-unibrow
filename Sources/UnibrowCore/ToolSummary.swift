@@ -178,15 +178,21 @@ public struct ToolSummary: Sendable, Equatable {
             settings.keys.insert("run_in_background")
             if background { settings.notes.append(Note(text: "Runs in the background", isWarning: false)) }
         }
-        if let milliseconds = object["timeout"]?.doubleValue, milliseconds >= 0, milliseconds.isFinite {
+        // The input is not trusted: a time limit beyond a day is not one Claude Code sends, and a huge
+        // number must never reach an integer conversion (it would trap). It stays an unknown field then.
+        if let milliseconds = object["timeout"]?.doubleValue, (0...maxTimeoutMilliseconds).contains(milliseconds) {
             settings.keys.insert("timeout")
             settings.footnotes.append("Stops after " + duration(milliseconds: milliseconds))
         }
         return settings
     }
 
-    /// "15 min", "1 min 30 s", "45 s", "500 ms".
+    /// Longest time limit the card reads as one (24 hours).
+    static let maxTimeoutMilliseconds: Double = 24 * 60 * 60 * 1000
+
+    /// "15 min", "1 min 30 s", "45 s", "500 ms". Values outside 0…24 h (or NaN) are clamped: never a trap.
     static func duration(milliseconds: Double) -> String {
+        let milliseconds = milliseconds.isNaN ? 0 : min(max(milliseconds, 0), maxTimeoutMilliseconds)
         guard milliseconds >= 1000 else { return "\(Int(milliseconds)) ms" }
         let seconds = Int((milliseconds / 1000).rounded())
         let (minutes, rest) = (seconds / 60, seconds % 60)
