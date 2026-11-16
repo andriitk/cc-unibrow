@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The request card reads in plain words. A command's settings are named, not
+  shown as fields: "Runs outside the sandbox", "Runs in the background", and
+  "Stops after 15 min" under the opened command. The opened detail is the
+  whole command, wrapped, instead of the request as JSON; the "N lines" and
+  "N more fields" chips are gone ("Show full command (6 lines)" says how much
+  there is). A field the card does not know is still named and still turns
+  the detail into the full input.
+
 ## [0.2.7] - 2026-11-10
 
 ### Changed

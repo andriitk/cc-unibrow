@@ -28,8 +28,10 @@ request demo-2 "$HOME/code/landing" mcp__github__create_pull_request '{"repo":"m
 # Multi-line: Allow stays off until "Show full command" was opened.
 request demo-1 "$HOME/code/shop-api" Bash '{"command":"npm ci\nnpm run build\nrm -rf ./dist-old","description":"Clean rebuild"}'
 
-# An extra field: the detail becomes the full input, the sandbox flag is called out.
-request demo-3 "$HOME/code/infra" Bash '{"command":"make deploy","description":"Deploy","dangerouslyDisableSandbox":true}'
+# Known settings are said in words: "Runs outside the sandbox", and the time limit under the opened command.
+request demo-3 "$HOME/code/infra" Bash '{"command":"make deploy","description":"Deploy","dangerouslyDisableSandbox":true,"timeout":900000}'
+# A field the card does not know: the detail becomes the full input and the field is named.
+request demo-3 "$HOME/code/infra" Bash '{"command":"make test","description":"Test","retries":3}'
 
 # MCP elicitations: a form (every field kind) and a sign-in link. The answer
 # JSON is printed when you respond.

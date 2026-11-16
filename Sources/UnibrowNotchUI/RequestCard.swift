@@ -24,13 +24,16 @@ struct RequestCard: View {
             CardHeader(context: context, symbol: summary.symbol, title: summary.title)
 
             // An input that fits is never cut; anything longer is reviewed in
-            // the detail, so the headline may stay a two-line label.
-            Text(summary.headline.isEmpty ? "—" : summary.headline)
-                .font(.system(size: 12, design: .monospaced))
-                .foregroundStyle(.white)
-                .lineLimit(isShowingDetail || review.fitsInHeadline ? nil : 2)
-                .truncationMode(.middle)
-                .textSelection(.enabled)
+            // the detail, so the headline may stay a short label. With the
+            // detail open the command is read there, whole: not twice.
+            if !(isShowingDetail && Self.repeatsHeadline(summary.detail)) {
+                Text(summary.headline.isEmpty ? "—" : summary.headline)
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(.white)
+                    .lineLimit(isShowingDetail || review.fitsInHeadline ? nil : 3)
+                    .truncationMode(.tail)
+                    .textSelection(.enabled)
+            }
 
             if let caption = summary.caption, !caption.isEmpty {
                 Text(caption)
@@ -50,6 +53,11 @@ struct RequestCard: View {
             if isShowingDetail, let detail = summary.detail {
                 DetailView(detail: detail)
                     .transition(.opacity.combined(with: .move(edge: .top)))
+                ForEach(summary.footnotes, id: \.self) { footnote in
+                    Text(footnote)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.55))
+                }
             }
 
             if !review.canApproveHere {
@@ -69,8 +77,19 @@ struct RequestCard: View {
     }
 
     private static func hasNotes(_ review: ToolSummary.Review) -> Bool {
-        review.isMultiLine || review.isTruncated || review.hasEscapedCharacters
+        !review.notes.isEmpty || review.isTruncated || review.hasEscapedCharacters
             || review.hasNonASCII || !review.extraKeys.isEmpty
+    }
+
+    /// The opened detail is the command or text the headline starts with.
+    private static func repeatsHeadline(_ detail: ToolSummary.Detail?) -> Bool {
+        if case .code = detail { return true }
+        return false
+    }
+
+    /// "Show full command (6 lines)": how much there is to read, on the button that shows it.
+    static func showLabel(noun: String, review: ToolSummary.Review) -> String {
+        review.isMultiLine ? "Show full \(noun) (\(review.lineCount) lines)" : "Show full \(noun)"
     }
 
     private func actions(summary: ToolSummary) -> some View {
@@ -91,7 +110,7 @@ struct RequestCard: View {
                     }
                 } label: {
                     Label(
-                        isShowingDetail ? "Less" : mustReview ? "Show full \(noun)" : "Details",
+                        isShowingDetail ? "Less" : mustReview ? Self.showLabel(noun: noun, review: review) : "Details",
                         systemImage: isShowingDetail ? "chevron.up" : "chevron.down"
                     )
                     .imageScale(.small)
@@ -174,20 +193,24 @@ private struct ReviewNotes: View {
 
     @ViewBuilder
     private var chips: some View {
+        // What the card knows, in words.
+        ForEach(review.notes, id: \.text) { note in
+            Chip(
+                text: note.text, symbol: note.isWarning ? "exclamationmark.shield" : "info.circle",
+                color: note.isWarning ? .orange : .white.opacity(0.55))
+        }
+        // What it does not know, by name: a field of a newer Claude Code must not pass unseen.
         ForEach(review.flaggedKeys, id: \.self) { key in
-            Chip(text: key, symbol: "exclamationmark.shield", color: .orange)
-                .help("This request sets \(key)")
+            Chip(text: "Sets \(key)", symbol: "exclamationmark.shield", color: .orange)
+                .help("This request sets \(key). Open it to see the value.")
         }
-        if review.extraKeys.count > review.flaggedKeys.count {
-            let others = review.extraKeys.count - review.flaggedKeys.count
-            Chip(text: "\(others) more field\(others == 1 ? "" : "s")", symbol: "curlybraces")
-                .help(review.extraKeys.joined(separator: ", "))
-        }
-        if review.isMultiLine {
-            Chip(text: "\(review.lineCount) lines", symbol: "text.alignleft")
+        let others = review.extraKeys.filter { !review.flaggedKeys.contains($0) }
+        if !others.isEmpty {
+            Chip(text: Self.alsoSets(others), symbol: "plus.circle")
+                .help("Open the request to see: " + others.joined(separator: ", "))
         }
         if review.isTruncated {
-            Chip(text: "\(review.hiddenCharacters) more characters", symbol: "scissors")
+            Chip(text: "\(review.hiddenCharacters) characters not shown", symbol: "scissors")
         }
         if review.hasNonASCII {
             Chip(text: "non-ASCII characters", symbol: "character", color: .orange)
@@ -197,6 +220,13 @@ private struct ReviewNotes: View {
             Chip(text: "hidden characters shown escaped", symbol: "exclamationmark.triangle", color: .orange)
                 .help("Control, bidi or invisible characters appear as \\r, \\u{…}")
         }
+    }
+}
+
+extension ReviewNotes {
+    /// "Also sets: mode" for one or two fields, "Also sets 3 other fields" for more.
+    static func alsoSets(_ keys: [String]) -> String {
+        keys.count <= 2 ? "Also sets: " + keys.joined(separator: ", ") : "Also sets \(keys.count) other fields"
     }
 }
 
@@ -225,14 +255,15 @@ private struct DetailView: View {
     let detail: ToolSummary.Detail
 
     var body: some View {
-        ScrollView([.vertical, .horizontal]) {
+        // Long lines wrap: the whole command is read by scrolling down only.
+        ScrollView(.vertical) {
             content
                 .font(.system(size: 11, design: .monospaced))
                 .textSelection(.enabled)
                 .padding(8)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxHeight: 180)
+        .frame(maxHeight: 220)
         .fixedSize(horizontal: false, vertical: true)
         .background(.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }

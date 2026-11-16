@@ -17,8 +17,10 @@ instead. You will get a reply within a few days.
   mode `0600`, and the app checks that connections come from the same user.
 - **Nothing hidden.** When the card cannot show the whole input on one line (a
   long, multi-line or non-ASCII command, an edit or plan, or fields the card
-  does not show, with `dangerouslyDisableSandbox` called out), it says so and
-  offers "Show full …"; control, bidi and invisible characters are shown
+  does not know), it says so and offers "Show full …". A command's known
+  settings are said in words on the card itself ("Runs outside the sandbox",
+  "Runs in the background"); an unknown field is named, and one that looks
+  safety-relevant is highlighted; control, bidi and invisible characters are shown
   escaped. Allow is not blocked on opening it: that is the user's call.
 - **MCP servers are untrusted.** In an elicitation card the server name,
   message, field titles, option titles and URL are escaped the same way and
