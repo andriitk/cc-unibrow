@@ -27,6 +27,17 @@ public struct ToolSummary: Sendable, Equatable {
     public let symbol: String
     /// What the card must show before it may offer Allow.
     public let review: Review
+    /// Settings of the call that cannot change what runs, said in words under the opened detail
+    /// (a command's time limit). Nothing here has to be read before Allow.
+    public let footnotes: [String]
+
+    /// A setting of the call the card says in words instead of showing its field.
+    public struct Note: Sendable, Equatable {
+        /// A short phrase a person can read: "Runs outside the sandbox".
+        public let text: String
+        /// It weakens a safety check: the card shows it in the warning colour.
+        public let isWarning: Bool
+    }
 
     /// How much of the input the collapsed card shows, so the app never lets
     /// someone approve text they could not see (a long command whose dangerous
@@ -50,6 +61,9 @@ public struct ToolSummary: Sendable, Equatable {
         /// Extra fields that change how safely the tool runs, such as
         /// `dangerouslyDisableSandbox`. The card calls them out.
         public let flaggedKeys: [String]
+        /// Settings of the call the card knows and says in words. Always on
+        /// the collapsed card, so they are seen before Allow.
+        public fileprivate(set) var notes: [Note] = []
 
         init(
             fitsInHeadline: Bool,
@@ -108,6 +122,7 @@ public struct ToolSummary: Sendable, Equatable {
         self.caption = caption
         self.detail = display?.detail
         self.symbol = symbol
+        self.footnotes = []
         self.review = Review(
             fitsInHeadline: detail == nil || (headlineIsComplete && headlineFits),
             lineCount: display?.lineCount ?? (headline.isEmpty ? 0 : 1),
@@ -117,13 +132,66 @@ public struct ToolSummary: Sendable, Equatable {
         )
     }
 
-    private init(title: String, headline: String, caption: String?, detail: Detail?, symbol: String, review: Review) {
+    private init(
+        title: String, headline: String, caption: String?, detail: Detail?, symbol: String, review: Review,
+        footnotes: [String] = []
+    ) {
         self.title = title
         self.headline = headline
         self.caption = caption
         self.detail = detail
         self.symbol = symbol
         self.review = review
+        self.footnotes = footnotes
+    }
+
+    /// The same card with the call's known settings said in words.
+    private func saying(_ settings: Settings) -> ToolSummary {
+        var review = review
+        review.notes = settings.notes
+        return ToolSummary(
+            title: title, headline: headline, caption: caption, detail: detail, symbol: symbol, review: review,
+            footnotes: settings.footnotes)
+    }
+
+    /// Fields of a call the card understands and says in words, so they need
+    /// neither their raw name nor the whole input as JSON.
+    struct Settings: Equatable {
+        /// The fields read here. Any other field the card has no place for
+        /// still makes the detail the full input.
+        var keys: Set<String> = []
+        var notes: [Note] = []
+        var footnotes: [String] = []
+    }
+
+    /// The settings of `toolName` in `input`. A field counts only with the
+    /// type Claude Code sends it in; anything else stays an unknown field,
+    /// shown as it is.
+    static func settings(toolName: String, input: JSONValue) -> Settings {
+        guard toolName == "Bash", let object = input.objectValue else { return Settings() }
+        var settings = Settings()
+        if case .bool(let outside)? = object["dangerouslyDisableSandbox"] {
+            settings.keys.insert("dangerouslyDisableSandbox")
+            if outside { settings.notes.append(Note(text: "Runs outside the sandbox", isWarning: true)) }
+        }
+        if case .bool(let background)? = object["run_in_background"] {
+            settings.keys.insert("run_in_background")
+            if background { settings.notes.append(Note(text: "Runs in the background", isWarning: false)) }
+        }
+        if let milliseconds = object["timeout"]?.doubleValue, milliseconds >= 0, milliseconds.isFinite {
+            settings.keys.insert("timeout")
+            settings.footnotes.append("Stops after " + duration(milliseconds: milliseconds))
+        }
+        return settings
+    }
+
+    /// "15 min", "1 min 30 s", "45 s", "500 ms".
+    static func duration(milliseconds: Double) -> String {
+        guard milliseconds >= 1000 else { return "\(Int(milliseconds)) ms" }
+        let seconds = Int((milliseconds / 1000).rounded())
+        let (minutes, rest) = (seconds / 60, seconds % 60)
+        if minutes == 0 { return "\(rest) s" }
+        return rest == 0 ? "\(minutes) min" : "\(minutes) min \(rest) s"
     }
 
     /// The same card, but its detail becomes the whole input as JSON, because
@@ -302,8 +370,9 @@ public struct ToolSummary: Sendable, Equatable {
     ///   the exact text, so what you approve is what runs.
     public init(toolName: String, input: JSONValue, cwd: String = "", home: String = NSHomeDirectory()) {
         let summary = Self.mapped(toolName: toolName, input: input, cwd: cwd, home: home)
-        let extra = Self.extraKeys(toolName: toolName, input: input)
-        self = extra.isEmpty ? summary : summary.showingFullInput(input, extraKeys: extra)
+        let settings = Self.settings(toolName: toolName, input: input)
+        let extra = Self.extraKeys(toolName: toolName, input: input).filter { !settings.keys.contains($0) }
+        self = (extra.isEmpty ? summary : summary.showingFullInput(input, extraKeys: extra)).saying(settings)
     }
 
     private static func mapped(toolName: String, input: JSONValue, cwd: String, home: String) -> ToolSummary {

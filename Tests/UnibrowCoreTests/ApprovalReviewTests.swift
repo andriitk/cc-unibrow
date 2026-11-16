@@ -107,28 +107,69 @@ struct ApprovalReviewTests {
         #expect(oddKey.headline == #""a, b: c": 1"#)
     }
 
-    @Test("Fields the card does not show make the detail the full input")
+    @Test("A command's known settings are said in words; the detail stays the command")
+    func knownSettingsInWords() throws {
+        let command = "git add -A && git commit -q -F - <<'EOF'\nB6: paste\nEOF"
+        let input: JSONValue = .object([
+            "command": .string(command),
+            "description": .string("Commit B6"),
+            "timeout": .number(900_000),
+            "dangerouslyDisableSandbox": .bool(true),
+            "run_in_background": .bool(true),
+        ])
+        let summary = ToolSummary(toolName: "Bash", input: input)
+        // No raw field names, no JSON: the command itself, whole.
+        #expect(summary.review.extraKeys.isEmpty && summary.review.flaggedKeys.isEmpty)
+        #expect(
+            summary.review.notes == [
+                .init(text: "Runs outside the sandbox", isWarning: true),
+                .init(text: "Runs in the background", isWarning: false),
+            ])
+        #expect(summary.footnotes == ["Stops after 15 min"])
+        #expect(summary.detail == .code(command))
+        #expect(summary.review.lineCount == 3 && summary.review.requiresExpanding)
+
+        // Switched off, they say nothing; a short command with only a time limit needs no opening.
+        let plain = ToolSummary(
+            toolName: "Bash",
+            input: .object([
+                "command": .string("ls"), "timeout": .number(30_000), "dangerouslyDisableSandbox": .bool(false),
+                "run_in_background": .bool(false),
+            ]))
+        #expect(plain.review.notes.isEmpty && plain.footnotes == ["Stops after 30 s"])
+        #expect(!plain.review.requiresExpanding)
+        #expect(ToolSummary.duration(milliseconds: 90_000) == "1 min 30 s")
+        #expect(ToolSummary.duration(milliseconds: 500) == "500 ms")
+    }
+
+    @Test("Fields the card does not know make the detail the full input")
     func extraKeys() throws {
+        // A known field with a value of another type is not understood: shown as it is, and flagged.
         let input: JSONValue = .object([
             "command": .string("ls"),
             "timeout": .number(600_000),
-            "dangerouslyDisableSandbox": .bool(true),
+            "dangerouslyDisableSandbox": .string("yes"),
+            "newField": .number(1),
         ])
         let summary = ToolSummary(toolName: "Bash", input: input)
         #expect(summary.headline == "ls")
         #expect(summary.review.requiresExpanding)
-        #expect(summary.review.extraKeys == ["dangerouslyDisableSandbox", "timeout"])
+        #expect(summary.review.extraKeys == ["dangerouslyDisableSandbox", "newField"])
         #expect(summary.review.flaggedKeys == ["dangerouslyDisableSandbox"])
+        #expect(summary.review.notes.isEmpty)
         guard case .code(let shown) = try #require(summary.detail) else {
             Issue.record("Expected a code detail")
             return
         }
-        #expect(shown.contains(#""dangerouslyDisableSandbox" : true"#))
+        #expect(shown.contains(#""dangerouslyDisableSandbox" : "yes""#))
         #expect(shown.contains(#""command" : "ls""#))
-
-        let background = ToolSummary(toolName: "Bash", input: .object(["command": .string("ls"), "run_in_background": .bool(true)]))
-        #expect(background.review.requiresExpanding)
-        #expect(background.review.flaggedKeys.isEmpty)
+        // Other tools have no known settings: the same field there is unknown.
+        let other = ToolSummary(
+            toolName: "Write",
+            input: .object([
+                "file_path": .string("/a"), "content": .string("x"), "dangerouslyDisableSandbox": .bool(true),
+            ]))
+        #expect(other.review.flaggedKeys == ["dangerouslyDisableSandbox"])
     }
 
     @Test("Unknown fields count for tools without a detail too")

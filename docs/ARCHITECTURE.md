@@ -386,9 +386,13 @@ separate diff, file contents or plan, escaped characters, non-ASCII in a
 command, or input fields the card has no place for), the card marks it and
 offers "Show full …". Allow and Always stay enabled (owner's decision: no
 forced extra click); `Review.allowsApproval` remains for callers that want to
-gate. Fields the card does not know turn the detail into the full input as
-JSON, and safety-relevant ones such as `dangerouslyDisableSandbox` are called
-out. A capped detail is flagged and points to the
+gate. A Bash call's known settings are said in words (`ToolSummary.settings`):
+`dangerouslyDisableSandbox` as "Runs outside the sandbox" and
+`run_in_background` as "Runs in the background" on the collapsed card, `timeout`
+as "Stops after 15 min" under the opened command; the detail stays the command
+itself, wrapped, not JSON. Fields the card does not know (or a known one with
+another type) turn the detail into the full input as JSON and are named on the
+card, safety-relevant ones highlighted. A capped detail is flagged and points to the
 terminal. Control characters (`\r`, ANSI escapes), bidi overrides,
 default-ignorable and other invisible characters and non-ASCII spaces are
 shown escaped, so text cannot hide or overwrite other text; MCP arguments
