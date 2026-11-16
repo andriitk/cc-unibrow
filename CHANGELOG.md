@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-11-16
+
 ### Changed
 
 - The request card reads in plain words. A command's settings are named, not
