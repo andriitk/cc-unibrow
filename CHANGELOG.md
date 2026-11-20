@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.14] - 2026-11-20
+
+### Changed
+
+- While an embedding app draws artwork, a card's header has two rows: the
+  drawing leads like an avatar beside the title, host app and age, and the
+  tool's symbol is the first chip on the row under it. Peek rows show the
+  drawing alone. Without artwork the header is unchanged.
+
 ## [0.2.13] - 2026-11-20
 
 ### Fixed

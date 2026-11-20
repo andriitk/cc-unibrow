@@ -19,77 +19,102 @@ struct RequestContext {
     }
 }
 
-/// The card's tool symbol: plain, or after the host's drawing in a tile.
+/// The card's tool symbol, without artwork.
 struct ToolSymbol: View {
-    let request: PendingRequest
     let symbol: String
-    @Environment(\.notchArtwork) private var artwork
 
     var body: some View {
-        if artwork != nil {
-            RowMark(slot: .request(request)) { EmptyView() }
-            ToolTile(symbol: symbol)
-        } else {
-            Image(systemName: symbol)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.orange)
-                .frame(width: 16)
-        }
+        Image(systemName: symbol)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(.orange)
+            .frame(width: 16)
     }
 }
 
-/// Shared card header: tool, branch, session, host app and age.
+/// Shared card header: tool, branch, session, host app and age. While an
+/// embedding app draws artwork, its drawing leads the card like an avatar
+/// beside two rows: the title, host app and age, then the tool as the first
+/// chip before the others. Otherwise one row, as before.
 struct CardHeader: View {
     let context: RequestContext
     let symbol: String
     let title: String
+    @Environment(\.notchArtwork) private var artwork
 
     var body: some View {
-        HStack(spacing: 6) {
-            ToolSymbol(request: context.request, symbol: symbol)
-            Text(title)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.9))
-                .lineLimit(1)
-                .layoutPriority(1)
-
-            if let branch = context.request.branch {
-                Chip(text: Chip.shortened(branch), symbol: "arrow.triangle.branch")
-                    .help("Git branch \(branch)")
-            }
-            if let agent = context.request.agentType {
-                Chip(text: Chip.shortened(agent), symbol: "person.2")
-                    .help("Asked by the subagent \(agent)")
-            }
-            if let agents = context.runningAgents {
-                Chip(text: agents.text, symbol: "person.3")
-                    .help(agents.help)
-            }
-            // The start of the Claude Code session ID: the same on every card
-            // that comes from one terminal, different across terminals.
-            Chip(text: context.request.sessionTag, symbol: "terminal")
-                .help("Claude Code session \(context.request.sessionID)")
-
-            Spacer(minLength: 6)
-
-            if let app = context.hostApp, let name = app.localizedName {
-                Button(action: context.bringToFront) {
-                    HStack(spacing: 3) {
-                        Text(name)
-                        Image(systemName: "arrow.up.forward")
-                            .imageScale(.small)
+        if artwork != nil {
+            HStack(alignment: .top, spacing: 8) {
+                RowMark(slot: .request(context.request)) { EmptyView() }
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 6) {
+                        titleText
+                        Spacer(minLength: 6)
+                        trailing
+                    }
+                    HStack(spacing: 6) {
+                        ToolChip(symbol: symbol)
+                        chips
                     }
                 }
-                .buttonStyle(.pill(.quiet))
-                .help("Show \(name)")
             }
+        } else {
+            HStack(spacing: 6) {
+                ToolSymbol(symbol: symbol)
+                titleText
+                chips
+                Spacer(minLength: 6)
+                trailing
+            }
+        }
+    }
 
-            TimelineView(.periodic(from: .now, by: 1)) { timeline in
-                Text(Self.age(from: context.request.receivedAt, to: timeline.date))
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(.white.opacity(0.4))
+    private var titleText: some View {
+        Text(title)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.9))
+            .lineLimit(1)
+            .layoutPriority(1)
+    }
+
+    @ViewBuilder
+    private var chips: some View {
+        if let branch = context.request.branch {
+            Chip(text: Chip.shortened(branch), symbol: "arrow.triangle.branch")
+                .help("Git branch \(branch)")
+        }
+        if let agent = context.request.agentType {
+            Chip(text: Chip.shortened(agent), symbol: "person.2")
+                .help("Asked by the subagent \(agent)")
+        }
+        if let agents = context.runningAgents {
+            Chip(text: agents.text, symbol: "person.3")
+                .help(agents.help)
+        }
+        // The start of the Claude Code session ID: the same on every card
+        // that comes from one terminal, different across terminals.
+        Chip(text: context.request.sessionTag, symbol: "terminal")
+            .help("Claude Code session \(context.request.sessionID)")
+    }
+
+    @ViewBuilder
+    private var trailing: some View {
+        if let app = context.hostApp, let name = app.localizedName {
+            Button(action: context.bringToFront) {
+                HStack(spacing: 3) {
+                    Text(name)
+                    Image(systemName: "arrow.up.forward")
+                        .imageScale(.small)
+                }
             }
+            .buttonStyle(.pill(.quiet))
+            .help("Show \(name)")
+        }
+
+        TimelineView(.periodic(from: .now, by: 1)) { timeline in
+            Text(Self.age(from: context.request.receivedAt, to: timeline.date))
+                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(.white.opacity(0.4))
         }
     }
 
