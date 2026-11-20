@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.12] - 2026-11-20
+
+### Added
+
+- An app that embeds the notch view can draw its own marks in it through the
+  optional `notchArtwork` environment value. Unibrow sets none, so the notch
+  looks exactly as before.
+
 ## [0.2.8] - 2026-11-16
 
 ### Changed

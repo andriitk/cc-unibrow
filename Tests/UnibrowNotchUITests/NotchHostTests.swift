@@ -37,6 +37,19 @@ struct NotchHostTests {
         #expect(!host.hasFailure)
     }
 
+    @Test("The indicator: red beats the count, orange counts what waits, green only for finished sessions")
+    func indicator() {
+        let host = RecordingHost()
+        #expect(host.indicator == nil)
+        host.finished.record(FinishedSession(sessionID: "s1", cwd: "/p"))
+        #expect(host.indicator == .done)
+        host.queue.append(Requests.bash)
+        host.alerts.record(SessionAlert(sessionID: "s2", cwd: "/p", kind: .needsInput(title: nil, message: "Hi")))
+        #expect(host.indicator == .waiting(count: 2))
+        host.alerts.record(SessionAlert(sessionID: "s3", cwd: "/p", kind: .stopFailure(.other("x"), details: nil)))
+        #expect(host.indicator == .failure)
+    }
+
     @Test("Each request gets its card")
     func cardKind() throws {
         #expect(CardKind(Requests.bash) == .permission)
