@@ -21,12 +21,13 @@ struct RequestContext {
 
 /// The card's tool symbol: plain, or after the host's drawing in a tile.
 struct ToolSymbol: View {
+    let request: PendingRequest
     let symbol: String
     @Environment(\.notchArtwork) private var artwork
 
     var body: some View {
         if artwork != nil {
-            RowMark(slot: .request) { EmptyView() }
+            RowMark(slot: .request(request)) { EmptyView() }
             ToolTile(symbol: symbol)
         } else {
             Image(systemName: symbol)
@@ -45,7 +46,7 @@ struct CardHeader: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            ToolSymbol(symbol: symbol)
+            ToolSymbol(request: context.request, symbol: symbol)
             Text(title)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.9))

@@ -426,12 +426,15 @@ public struct ToolSummary: Sendable, Equatable {
             )
 
         case "Write":
+            // An empty file has nothing to read: say so instead of an empty box.
+            let content = string("content")
             return ToolSummary(
                 title: "Write",
                 headline: path("file_path") ?? "file",
-                detail: string("content").map(Detail.code),
+                caption: content == "" ? "Empty file" : nil,
+                detail: content.flatMap { $0.isEmpty ? nil : Detail.code($0) },
                 symbol: "doc.badge.plus",
-                headlineIsComplete: false
+                headlineIsComplete: content == ""
             )
 
         case "NotebookEdit":
