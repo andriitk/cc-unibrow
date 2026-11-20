@@ -73,19 +73,19 @@ struct RowMark<Fallback: View>: View {
     }
 }
 
-/// The tool's symbol in a small tinted tile, shown after the host's drawing.
-struct ToolTile: View {
+/// The tool's symbol as the first chip under the title, while a host draws
+/// the card's leading mark: orange, like the symbol it replaces.
+struct ToolChip: View {
     let symbol: String
 
     var body: some View {
         Image(systemName: symbol)
-            .font(.system(size: 10, weight: .bold))
+            .font(.system(size: 9, weight: .bold))
             .foregroundStyle(.orange)
-            .frame(width: 20, height: 20)
-            .background(.orange.opacity(0.16), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .strokeBorder(.orange.opacity(0.28), lineWidth: 0.5))
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(.orange.opacity(0.16), in: Capsule())
+            .overlay(Capsule().strokeBorder(.orange.opacity(0.28), lineWidth: 0.5))
             .accessibilityHidden(true)
     }
 }

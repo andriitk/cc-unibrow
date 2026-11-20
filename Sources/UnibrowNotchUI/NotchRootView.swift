@@ -187,7 +187,7 @@ private struct ElicitationPeekRow: View {
     }
 }
 
-/// A peek row's tool symbol: plain, or after the host's drawing in a tile.
+/// A peek row's leading mark: the tool symbol, or the host's drawing alone.
 private struct PeekToolMark: View {
     let request: PendingRequest
     let symbol: String
@@ -196,7 +196,6 @@ private struct PeekToolMark: View {
     var body: some View {
         if artwork != nil {
             RowMark(slot: .request(request)) { EmptyView() }
-            ToolTile(symbol: symbol)
         } else {
             Image(systemName: symbol)
                 .font(.system(size: 13, weight: .semibold))
