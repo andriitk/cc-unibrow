@@ -22,11 +22,14 @@ struct RequestContext {
 /// Shared card header: Claude's "needs you" drawing, what is asked, branch, session, host app and age.
 struct CardHeader: View {
     let context: RequestContext
+    /// The tool's SF Symbol (`ToolSummary.symbol`), shown in a small tinted tile before the title.
+    let symbol: String
     let title: String
 
     var body: some View {
         HStack(spacing: 6) {
             ClaudeStateMark(state: .needsYou)
+            ToolTile(symbol: symbol)
             Text(title)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.9))
@@ -82,6 +85,24 @@ struct CardHeader: View {
         case ..<3600: return "\(seconds / 60)m"
         default: return "\(seconds / 3600)h"
         }
+    }
+}
+
+/// The tool at a glance: its symbol in a small rounded tile, tinted like the card's state.
+struct ToolTile: View {
+    let symbol: String
+    var tint: Color = .orange
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 10, weight: .bold))
+            .foregroundStyle(tint)
+            .frame(width: 20, height: 20)
+            .background(tint.opacity(0.16), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(tint.opacity(0.28), lineWidth: 0.5))
+            .accessibilityHidden(true)
     }
 }
 

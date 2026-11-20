@@ -21,7 +21,7 @@ struct RequestCard: View {
         let summary = ToolSummary(toolName: request.toolName, input: request.toolInput, cwd: request.cwd)
         let review = summary.review
         VStack(alignment: .leading, spacing: 8) {
-            CardHeader(context: context, title: summary.title)
+            CardHeader(context: context, symbol: summary.symbol, title: summary.title)
 
             // An input that fits is never cut; anything longer is reviewed in
             // the detail, so the headline may stay a short label. With the

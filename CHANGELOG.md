@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Request cards show the tool again, as a small tinted tile next to Claude's
+  drawing: a terminal for Bash, a pencil for edits, a globe for web fetches,
+  a form or a link for MCP requests, a bubble for questions. Peek rows too.
+
 ## [0.2.10] - 2026-11-20
 
 ### Changed

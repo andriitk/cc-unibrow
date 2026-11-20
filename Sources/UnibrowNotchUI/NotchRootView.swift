@@ -156,6 +156,7 @@ private struct ElicitationPeekRow: View {
     var body: some View {
         HStack(spacing: 10) {
             ClaudeStateMark(state: .needsYou)
+            ToolTile(symbol: ElicitationCard.symbol(for: elicitation))
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(request.projectName) · \(elicitation.serverName)")
                     .font(.system(size: 11, weight: .semibold))
@@ -283,6 +284,7 @@ private struct PeekRow: View {
         let summary = ToolSummary(toolName: request.toolName, input: request.toolInput, cwd: request.cwd)
         HStack(spacing: 10) {
             ClaudeStateMark(state: .needsYou)
+            ToolTile(symbol: summary.symbol)
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(request.projectName) · \(summary.title)")
                     .font(.system(size: 11, weight: .semibold))
