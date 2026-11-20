@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.11] - 2026-11-20
+
 ### Changed
 
 - Request cards show the tool again, as a small tinted tile next to Claude's
