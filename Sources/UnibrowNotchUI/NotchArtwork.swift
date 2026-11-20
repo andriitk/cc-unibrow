@@ -1,4 +1,5 @@
 public import SwiftUI
+public import UnibrowCore
 
 /// What an app that embeds the notch view may draw in place of the notch's own
 /// marks, through `\.notchArtwork`. Unibrow itself sets none, so the notch
@@ -8,8 +9,9 @@ public struct NotchArtwork {
     public enum Slot: Equatable, Sendable {
         /// The left wing; `expanded` while the request list is open.
         case wing(NotchIndicator, expanded: Bool)
-        /// A request, question or MCP card, and its peek row.
-        case request
+        /// A request, question or MCP card, and its peek row: the request
+        /// says which kind (`isQuestion`, `isPlanApproval`, `elicitation`, the tool).
+        case request(PendingRequest)
         /// A background agent that waits for input.
         case needsInput
         /// A session that stopped on a failure.

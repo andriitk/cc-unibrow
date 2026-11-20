@@ -21,6 +21,19 @@ struct EdgeCaseTests {
         #expect(request.toolInput["content"]?.stringValue?.count == content.count)
     }
 
+    @Test("An empty Write says so and has no detail to open")
+    func emptyWrite() {
+        let input: JSONValue = .object(["file_path": .string("/p/text.txt"), "content": .string("")])
+        let summary = ToolSummary(toolName: "Write", input: input, cwd: "/p")
+        #expect(summary.detail == nil)
+        #expect(summary.caption == "Empty file")
+        #expect(summary.headline == "text.txt")
+        #expect(summary.review.fitsInHeadline)
+
+        let blank: JSONValue = .object(["file_path": .string("/p/text.txt"), "content": .string(" \n")])
+        #expect(ToolSummary(toolName: "Write", input: blank, cwd: "/p").detail != nil)
+    }
+
     @Test("Very long headlines are cut")
     func longHeadline() {
         let command = String(repeating: "a", count: 2_000)

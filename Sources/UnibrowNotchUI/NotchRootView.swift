@@ -170,7 +170,7 @@ private struct ElicitationPeekRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            PeekToolMark(symbol: ElicitationCard.symbol(for: elicitation))
+            PeekToolMark(request: request, symbol: ElicitationCard.symbol(for: elicitation))
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(request.projectName) · \(elicitation.serverName)")
                     .font(.system(size: 11, weight: .semibold))
@@ -189,12 +189,13 @@ private struct ElicitationPeekRow: View {
 
 /// A peek row's tool symbol: plain, or after the host's drawing in a tile.
 private struct PeekToolMark: View {
+    let request: PendingRequest
     let symbol: String
     @Environment(\.notchArtwork) private var artwork
 
     var body: some View {
         if artwork != nil {
-            RowMark(slot: .request) { EmptyView() }
+            RowMark(slot: .request(request)) { EmptyView() }
             ToolTile(symbol: symbol)
         } else {
             Image(systemName: symbol)
@@ -322,7 +323,7 @@ private struct PeekRow: View {
     private var toolRow: some View {
         let summary = ToolSummary(toolName: request.toolName, input: request.toolInput, cwd: request.cwd)
         HStack(spacing: 10) {
-            PeekToolMark(symbol: summary.symbol)
+            PeekToolMark(request: request, symbol: summary.symbol)
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(request.projectName) · \(summary.title)")
                     .font(.system(size: 11, weight: .semibold))

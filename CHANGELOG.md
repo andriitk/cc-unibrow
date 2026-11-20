@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.13] - 2026-11-20
+
+### Fixed
+
+- A `Write` of an empty file says "Empty file" instead of opening an empty
+  box.
+
+### Changed
+
+- The `notchArtwork` request slot carries the request, so an embedding app
+  can draw a different mark per kind of request.
+
 ## [0.2.12] - 2026-11-20
 
 ### Added
