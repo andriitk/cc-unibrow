@@ -32,9 +32,9 @@ struct ToolSymbol: View {
 }
 
 /// Shared card header: tool, branch, session, host app and age. While an
-/// embedding app draws artwork, its drawing leads the card like an avatar
-/// beside two rows: the title, host app and age, then the tool as the first
-/// chip before the others. Otherwise one row, as before.
+/// embedding app draws artwork, two rows: its drawing, the title, host app
+/// and age; then, from the card's left edge like the body, the tool as the
+/// first chip before the others. Otherwise one row, as before.
 struct CardHeader: View {
     let context: RequestContext
     let symbol: String
@@ -43,18 +43,18 @@ struct CardHeader: View {
 
     var body: some View {
         if artwork != nil {
-            HStack(alignment: .top, spacing: 8) {
-                RowMark(slot: .request(context.request)) { EmptyView() }
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(spacing: 6) {
-                        titleText
-                        Spacer(minLength: 6)
-                        trailing
-                    }
-                    HStack(spacing: 6) {
-                        ToolChip(symbol: symbol)
-                        chips
-                    }
+            // Every row after the first starts at the card's left edge, like
+            // the card's body below it: one edge, nothing indented.
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    RowMark(slot: .request(context.request)) { EmptyView() }
+                    titleText
+                    Spacer(minLength: 6)
+                    trailing
+                }
+                HStack(spacing: 6) {
+                    ToolChip(symbol: symbol)
+                    chips
                 }
             }
         } else {
