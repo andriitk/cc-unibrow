@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The notch's left wing shows a Claude Code glyph, always in its own colour.
+  The state moved to the right wing: an orange capsule with the number of
+  things that wait, a red one with "!" when a session stopped on a failure
+  (a failure is never hidden by a count), and a green one with ✓ when only
+  finished sessions are left. The pulsing dot is gone.
+
 ## [0.2.8] - 2026-11-16
 
 ### Changed
