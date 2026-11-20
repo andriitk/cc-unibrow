@@ -19,18 +19,14 @@ struct RequestContext {
     }
 }
 
-/// Shared card header: tool, branch, session, host app and age.
+/// Shared card header: Claude's "needs you" drawing, what is asked, branch, session, host app and age.
 struct CardHeader: View {
     let context: RequestContext
-    let symbol: String
     let title: String
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: symbol)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.orange)
-                .frame(width: 16)
+            ClaudeStateMark(state: .needsYou)
             Text(title)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.9))

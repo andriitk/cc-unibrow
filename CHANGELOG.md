@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The open notch shows Claude's small state drawing on every row: requests and
+  questions (something waits), failed sessions, and finished ones, instead of
+  the system icons. The header's drawing is smaller while the list is open so
+  it clears the top of the screen.
+
 ## [0.2.9] - 2026-11-20
 
 ### Changed

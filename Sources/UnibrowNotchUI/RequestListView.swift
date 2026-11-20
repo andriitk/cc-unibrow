@@ -205,10 +205,7 @@ private struct FinishedRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 12))
-                .foregroundStyle(Color.green.opacity(0.85))
-                .padding(.top, 1)
+            ClaudeStateMark(state: .done)
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {

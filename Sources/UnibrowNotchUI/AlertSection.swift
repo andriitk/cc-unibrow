@@ -53,10 +53,7 @@ private struct AlertRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
-            Image(systemName: alert.isFailure ? "exclamationmark.octagon.fill" : "person.crop.circle.badge.questionmark")
-                .font(.system(size: 13))
-                .foregroundStyle(tint)
-                .padding(.top, 1)
+            ClaudeStateMark(state: alert.isFailure ? .failure : .needsYou)
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {

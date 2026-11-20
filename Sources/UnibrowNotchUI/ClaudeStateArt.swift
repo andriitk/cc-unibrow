@@ -37,6 +37,21 @@ struct ClaudeStateArt: View {
     }
 }
 
+/// Claude's small drawing for a row of the list (one cell = 1 pt, 2 px on a Retina screen). It sits in a slot of
+/// the same width for every state, so the rows' text lines up.
+struct ClaudeStateMark: View {
+    let state: ClaudeState
+
+    /// The widest drawing (30 cells) at 1 pt.
+    static let slotWidth: CGFloat = 30
+
+    var body: some View {
+        ClaudeStateArt(state, cell: 1)
+            .frame(width: Self.slotWidth, alignment: .center)
+            .accessibilityHidden(true)
+    }
+}
+
 /// One colour's cells as a shape, scaled to the frame it is given.
 private struct PixelLayer: Shape {
     let cells: [PixelArt.Cell]
