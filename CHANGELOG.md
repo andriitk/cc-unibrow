@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.10] - 2026-11-20
+
 ### Changed
 
 - The open notch shows Claude's small state drawing on every row: requests and
