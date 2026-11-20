@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.15] - 2026-11-20
+
+### Fixed
+
+- With artwork, the chips row under a card's title starts at the card's left
+  edge like the rest of the card, instead of indented under the title.
+
 ## [0.2.14] - 2026-11-20
 
 ### Changed
