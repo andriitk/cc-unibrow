@@ -54,6 +54,27 @@ extension NotchHost {
     /// Whether a session stopped on a failure (the red card): the wings
     /// show it in red, as the card does, instead of the orange of a request.
     public var hasFailure: Bool { alerts.items.contains(where: \.isFailure) }
+
+    /// The right wing: red when a session failed (a failure is never hidden by
+    /// a count), orange with the count while something waits, green when only
+    /// finished sessions are left; `nil` when the island is empty.
+    public var indicator: NotchIndicator? {
+        if hasFailure { return .failure }
+        let waiting = queue.count + alerts.count
+        if waiting > 0 { return .waiting(count: waiting) }
+        return finished.isEmpty ? nil : .done
+    }
+}
+
+/// What the right wing shows. The iPhone's Dynamic Island in Unibrow Pro uses
+/// the same three states, so both read the same way.
+public enum NotchIndicator: Equatable, Sendable {
+    /// Orange, with the number of things that wait.
+    case waiting(count: Int)
+    /// Red: a session stopped on a failure.
+    case failure
+    /// Green: a session finished, nothing to do.
+    case done
 }
 
 /// What briefly peeks out of the notch: a new request, an alert, or a

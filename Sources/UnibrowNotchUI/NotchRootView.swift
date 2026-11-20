@@ -24,12 +24,13 @@ public struct NotchRootView: View {
     }
 
     private enum Metrics {
-        static let wing: CGFloat = 46
+        /// Wide enough for Claude's drawing (30 cells × 1.5 pt) beside the camera housing.
+        static let wing: CGFloat = 64
+        /// One cell of the left drawing: 3 px on a @2x screen, so the edges stay sharp.
+        static let artCell: CGFloat = 1.5
         static let shoulder: CGFloat = 6
         static let peekWidth: CGFloat = 380
         static let expandedWidth: CGFloat = 500
-        /// The red of a failed session's card (`AlertSection`).
-        static let failureTint = Color(red: 1, green: 0.35, blue: 0.32)
     }
 
     private var mode: Mode {
@@ -38,13 +39,6 @@ public struct NotchRootView: View {
         if model.peek != nil { return .peek }
         return .compact
     }
-
-    /// Something needs the user (orange), or only "done" notices are left (green).
-    private var needsAttention: Bool { !model.queue.isEmpty || !model.alerts.isEmpty }
-
-    /// The wings' colour while something needs the user: red when a session
-    /// stopped on a failure (its card is red), orange otherwise.
-    private var attentionTint: Color { model.hasFailure ? Metrics.failureTint : .orange }
 
     private var width: CGFloat {
         let notch = island.notchSize.width
@@ -125,10 +119,8 @@ public struct NotchRootView: View {
     private var wings: some View {
         HStack(spacing: 0) {
             HStack(spacing: 6) {
-                if needsAttention {
-                    PulsingDot(tint: attentionTint)
-                } else {
-                    DoneMark()
+                if let indicator = model.indicator {
+                    ClaudeStateArt(indicator.claudeState, cell: Metrics.artCell)
                 }
                 if mode == .expanded {
                     Text("Claude Code")
@@ -143,8 +135,8 @@ public struct NotchRootView: View {
             Spacer(minLength: island.notchSize.width)
 
             Group {
-                if needsAttention {
-                    CountBadge(count: model.queue.count + model.alerts.count, tint: attentionTint)
+                if let indicator = model.indicator {
+                    IndicatorBadge(indicator: indicator)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
@@ -181,16 +173,6 @@ private struct ElicitationPeekRow: View {
     }
 }
 
-/// A calm green check: something finished, nothing to do.
-private struct DoneMark: View {
-    var body: some View {
-        Image(systemName: "checkmark.circle.fill")
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(Color.green)
-            .accessibilityLabel("A session finished")
-    }
-}
-
 private struct FinishedPeekRow: View {
     let notice: FinishedSession
 
@@ -215,43 +197,56 @@ private struct FinishedPeekRow: View {
     }
 }
 
-private struct PulsingDot: View {
-    var tint: Color = .orange
-    @State private var isPulsing = false
-
-    var body: some View {
-        Circle()
-            .fill(tint)
-            .frame(width: 8, height: 8)
-            .overlay(
-                Circle()
-                    .stroke(tint.opacity(0.6), lineWidth: 2)
-                    .scaleEffect(isPulsing ? 2.2 : 1)
-                    .opacity(isPulsing ? 0 : 1)
-            )
-            .onAppear {
-                withAnimation(.easeOut(duration: 1.4).repeatForever(autoreverses: false)) {
-                    isPulsing = true
-                }
-            }
-            .accessibilityHidden(true)
+extension NotchIndicator {
+    /// Claude's pose on the left wing for this state.
+    var claudeState: ClaudeState {
+        switch self {
+        case .waiting: .needsYou
+        case .failure: .failure
+        case .done: .done
+        }
     }
 }
 
-private struct CountBadge: View {
-    let count: Int
-    var tint: Color = .orange
+/// The right wing: a capsule with the count, ✓ or !, in the state's colour.
+private struct IndicatorBadge: View {
+    let indicator: NotchIndicator
 
     var body: some View {
-        Text("\(count)")
+        label
             .font(.system(size: 11, weight: .bold, design: .rounded))
             .monospacedDigit()
             .foregroundStyle(.black)
             .padding(.horizontal, 7)
             .frame(minWidth: 20, minHeight: 18)
             .background(tint, in: Capsule())
-            .contentTransition(.numericText())
-            .accessibilityLabel("\(count) items need you")
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(accessibility)
+    }
+
+    @ViewBuilder private var label: some View {
+        switch indicator {
+        case .waiting(let count): Text("\(count)").contentTransition(.numericText())
+        case .failure: Text("!")
+        case .done: Image(systemName: "checkmark").font(.system(size: 9, weight: .heavy))
+        }
+    }
+
+    private var tint: Color {
+        switch indicator {
+        case .waiting: .orange
+        // The red of a failed session's card (`AlertSection`).
+        case .failure: Color(red: 1, green: 0.35, blue: 0.32)
+        case .done: .green
+        }
+    }
+
+    private var accessibility: String {
+        switch indicator {
+        case .waiting(let count): count == 1 ? "1 item needs you" : "\(count) items need you"
+        case .failure: "A session failed"
+        case .done: "A session finished"
+        }
     }
 }
 

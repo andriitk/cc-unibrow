@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The notch's left wing shows Claude in the pose of the state: holding an "It
+  depends" sign when something waits, beside an error window when a session
+  failed, arms up under a check when it finished. The wings are wider for it.
+  The state's colour is on the right wing: an orange capsule with the number of
+  things that wait, a red one with "!" when a session stopped on a failure
+  (a failure is never hidden by a count), and a green one with ✓ when only
+  finished sessions are left. The pulsing dot is gone.
+
 ## [0.2.8] - 2026-11-16
 
 ### Changed
