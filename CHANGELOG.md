@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.9] - 2026-11-20
+
 ### Changed
 
 - The notch's left wing shows Claude in the pose of the state: holding an "It
