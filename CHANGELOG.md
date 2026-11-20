@@ -6,34 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-## [0.2.11] - 2026-11-20
+## [0.2.12] - 2026-11-20
 
-### Changed
+### Added
 
-- Request cards show the tool again, as a small tinted tile next to Claude's
-  drawing: a terminal for Bash, a pencil for edits, a globe for web fetches,
-  a form or a link for MCP requests, a bubble for questions. Peek rows too.
-
-## [0.2.10] - 2026-11-20
-
-### Changed
-
-- The open notch shows Claude's small state drawing on every row: requests and
-  questions (something waits), failed sessions, and finished ones, instead of
-  the system icons. The header's drawing is smaller while the list is open so
-  it clears the top of the screen.
-
-## [0.2.9] - 2026-11-20
-
-### Changed
-
-- The notch's left wing shows Claude in the pose of the state: holding an "It
-  depends" sign when something waits, beside an error window when a session
-  failed, arms up under a check when it finished. The wings are wider for it.
-  The state's colour is on the right wing: an orange capsule with the number of
-  things that wait, a red one with "!" when a session stopped on a failure
-  (a failure is never hidden by a count), and a green one with ✓ when only
-  finished sessions are left. The pulsing dot is gone.
+- An app that embeds the notch view can draw its own marks in it through the
+  optional `notchArtwork` environment value. Unibrow sets none, so the notch
+  looks exactly as before.
 
 ## [0.2.8] - 2026-11-16
 

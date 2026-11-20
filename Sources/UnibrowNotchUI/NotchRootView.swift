@@ -24,13 +24,12 @@ public struct NotchRootView: View {
     }
 
     private enum Metrics {
-        /// Wide enough for Claude's drawing (30 cells × 1.5 pt) beside the camera housing.
-        static let wing: CGFloat = 64
-        /// One cell of the left drawing: 3 px on a @2x screen, so the edges stay sharp.
-        static let artCell: CGFloat = 1.5
+        static let wing: CGFloat = 46
         static let shoulder: CGFloat = 6
         static let peekWidth: CGFloat = 380
         static let expandedWidth: CGFloat = 500
+        /// The red of a failed session's card (`AlertSection`).
+        static let failureTint = Color(red: 1, green: 0.35, blue: 0.32)
     }
 
     private var mode: Mode {
@@ -40,13 +39,25 @@ public struct NotchRootView: View {
         return .compact
     }
 
+    /// Something needs the user (orange), or only "done" notices are left (green).
+    private var needsAttention: Bool { !model.queue.isEmpty || !model.alerts.isEmpty }
+
+    /// The wings' colour while something needs the user: red when a session
+    /// stopped on a failure (its card is red), orange otherwise.
+    private var attentionTint: Color { model.hasFailure ? Metrics.failureTint : .orange }
+
+    @Environment(\.notchArtwork) private var artwork
+
+    /// A wing's width: the host's when it draws artwork there.
+    private var wing: CGFloat { artwork?.wingWidth ?? Metrics.wing }
+
     private var width: CGFloat {
         let notch = island.notchSize.width
         switch mode {
         case .hidden: return notch
-        case .compact: return notch + 2 * Metrics.wing
-        case .peek: return max(notch + 2 * Metrics.wing, Metrics.peekWidth)
-        case .expanded: return max(notch + 2 * Metrics.wing, Metrics.expandedWidth)
+        case .compact: return notch + 2 * wing
+        case .peek: return max(notch + 2 * wing, Metrics.peekWidth)
+        case .expanded: return max(notch + 2 * wing, Metrics.expandedWidth)
         }
     }
 
@@ -119,10 +130,12 @@ public struct NotchRootView: View {
     private var wings: some View {
         HStack(spacing: 0) {
             HStack(spacing: 6) {
-                if let indicator = model.indicator {
-                    // Open, the list's rows carry the same drawings; the header's one steps down so it clears the
-                    // screen's top edge.
-                    ClaudeStateArt(indicator.claudeState, cell: mode == .expanded ? 1 : Metrics.artCell)
+                if let artwork, let indicator = model.indicator {
+                    artwork.draw(.wing(indicator, expanded: mode == .expanded))
+                } else if needsAttention {
+                    PulsingDot(tint: attentionTint)
+                } else {
+                    DoneMark()
                 }
                 if mode == .expanded {
                     Text("Claude Code")
@@ -137,8 +150,10 @@ public struct NotchRootView: View {
             Spacer(minLength: island.notchSize.width)
 
             Group {
-                if let indicator = model.indicator {
+                if artwork != nil, let indicator = model.indicator {
                     IndicatorBadge(indicator: indicator)
+                } else if needsAttention {
+                    CountBadge(count: model.queue.count + model.alerts.count, tint: attentionTint)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
@@ -155,8 +170,7 @@ private struct ElicitationPeekRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            ClaudeStateMark(state: .needsYou)
-            ToolTile(symbol: ElicitationCard.symbol(for: elicitation))
+            PeekToolMark(symbol: ElicitationCard.symbol(for: elicitation))
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(request.projectName) · \(elicitation.serverName)")
                     .font(.system(size: 11, weight: .semibold))
@@ -173,12 +187,45 @@ private struct ElicitationPeekRow: View {
     }
 }
 
+/// A peek row's tool symbol: plain, or after the host's drawing in a tile.
+private struct PeekToolMark: View {
+    let symbol: String
+    @Environment(\.notchArtwork) private var artwork
+
+    var body: some View {
+        if artwork != nil {
+            RowMark(slot: .request) { EmptyView() }
+            ToolTile(symbol: symbol)
+        } else {
+            Image(systemName: symbol)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.orange)
+                .frame(width: 18)
+        }
+    }
+}
+
+/// A calm green check: something finished, nothing to do.
+private struct DoneMark: View {
+    var body: some View {
+        Image(systemName: "checkmark.circle.fill")
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(Color.green)
+            .accessibilityLabel("A session finished")
+    }
+}
+
 private struct FinishedPeekRow: View {
     let notice: FinishedSession
 
     var body: some View {
         HStack(spacing: 10) {
-            ClaudeStateMark(state: .done)
+            RowMark(slot: .finished) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.green)
+                    .frame(width: 18)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(notice.projectName) · Done")
                     .font(.system(size: 11, weight: .semibold))
@@ -194,18 +241,104 @@ private struct FinishedPeekRow: View {
     }
 }
 
-extension NotchIndicator {
-    /// Claude's pose on the left wing for this state.
-    var claudeState: ClaudeState {
-        switch self {
-        case .waiting: .needsYou
-        case .failure: .failure
-        case .done: .done
+private struct PulsingDot: View {
+    var tint: Color = .orange
+    @State private var isPulsing = false
+
+    var body: some View {
+        Circle()
+            .fill(tint)
+            .frame(width: 8, height: 8)
+            .overlay(
+                Circle()
+                    .stroke(tint.opacity(0.6), lineWidth: 2)
+                    .scaleEffect(isPulsing ? 2.2 : 1)
+                    .opacity(isPulsing ? 0 : 1)
+            )
+            .onAppear {
+                withAnimation(.easeOut(duration: 1.4).repeatForever(autoreverses: false)) {
+                    isPulsing = true
+                }
+            }
+            .accessibilityHidden(true)
+    }
+}
+
+private struct CountBadge: View {
+    let count: Int
+    var tint: Color = .orange
+
+    var body: some View {
+        Text("\(count)")
+            .font(.system(size: 11, weight: .bold, design: .rounded))
+            .monospacedDigit()
+            .foregroundStyle(.black)
+            .padding(.horizontal, 7)
+            .frame(minWidth: 20, minHeight: 18)
+            .background(tint, in: Capsule())
+            .contentTransition(.numericText())
+            .accessibilityLabel("\(count) items need you")
+    }
+}
+
+private struct AlertPeekRow: View {
+    let alert: SessionAlert
+
+    var body: some View {
+        HStack(spacing: 10) {
+            RowMark(slot: alert.isFailure ? .failure : .needsInput) {
+                Image(systemName: alert.isFailure ? "exclamationmark.octagon.fill" : "person.crop.circle.badge.questionmark")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(alert.isFailure ? Color.red : Color.orange)
+                    .frame(width: 18)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(alert.projectName)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.6))
+                Text(alert.headline)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            Spacer(minLength: 0)
         }
     }
 }
 
-/// The right wing: a capsule with the count, ✓ or !, in the state's colour.
+private struct PeekRow: View {
+    let request: PendingRequest
+
+    var body: some View {
+        if let elicitation = request.elicitation {
+            ElicitationPeekRow(request: request, elicitation: elicitation)
+        } else {
+            toolRow
+        }
+    }
+
+    @ViewBuilder
+    private var toolRow: some View {
+        let summary = ToolSummary(toolName: request.toolName, input: request.toolInput, cwd: request.cwd)
+        HStack(spacing: 10) {
+            PeekToolMark(symbol: summary.symbol)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(request.projectName) · \(summary.title)")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.6))
+                Text(summary.headline)
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+/// The right wing while a host draws the left one: a capsule with the count, ✓ or !.
 private struct IndicatorBadge: View {
     let indicator: NotchIndicator
 
@@ -243,59 +376,6 @@ private struct IndicatorBadge: View {
         case .waiting(let count): count == 1 ? "1 item needs you" : "\(count) items need you"
         case .failure: "A session failed"
         case .done: "A session finished"
-        }
-    }
-}
-
-private struct AlertPeekRow: View {
-    let alert: SessionAlert
-
-    var body: some View {
-        HStack(spacing: 10) {
-            ClaudeStateMark(state: alert.isFailure ? .failure : .needsYou)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(alert.projectName)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.6))
-                Text(alert.headline)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
-            Spacer(minLength: 0)
-        }
-    }
-}
-
-private struct PeekRow: View {
-    let request: PendingRequest
-
-    var body: some View {
-        if let elicitation = request.elicitation {
-            ElicitationPeekRow(request: request, elicitation: elicitation)
-        } else {
-            toolRow
-        }
-    }
-
-    @ViewBuilder
-    private var toolRow: some View {
-        let summary = ToolSummary(toolName: request.toolName, input: request.toolInput, cwd: request.cwd)
-        HStack(spacing: 10) {
-            ClaudeStateMark(state: .needsYou)
-            ToolTile(symbol: summary.symbol)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(request.projectName) · \(summary.title)")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.6))
-                Text(summary.headline)
-                    .font(.system(size: 12, design: .monospaced))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-            Spacer(minLength: 0)
         }
     }
 }

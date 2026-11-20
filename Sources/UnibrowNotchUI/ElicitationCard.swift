@@ -39,8 +39,6 @@ struct ElicitationCard: View {
         }
     }
 
-
-    /// The request's kind at a glance: a form, a link, or something only the terminal can answer.
     static func symbol(for elicitation: ElicitationRequest) -> String {
         switch elicitation.content {
         case .form: "list.bullet.rectangle"

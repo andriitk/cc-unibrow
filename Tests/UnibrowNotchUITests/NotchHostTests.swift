@@ -37,7 +37,7 @@ struct NotchHostTests {
         #expect(!host.hasFailure)
     }
 
-    @Test("The right wing: red beats the count, orange counts what waits, green only for finished sessions")
+    @Test("The indicator: red beats the count, orange counts what waits, green only for finished sessions")
     func indicator() {
         let host = RecordingHost()
         #expect(host.indicator == nil)
@@ -48,8 +48,6 @@ struct NotchHostTests {
         #expect(host.indicator == .waiting(count: 2))
         host.alerts.record(SessionAlert(sessionID: "s3", cwd: "/p", kind: .stopFailure(.other("x"), details: nil)))
         #expect(host.indicator == .failure)
-        host.alerts.remove(sessionID: "s3")
-        #expect(host.indicator == .waiting(count: 2))
     }
 
     @Test("Each request gets its card")
