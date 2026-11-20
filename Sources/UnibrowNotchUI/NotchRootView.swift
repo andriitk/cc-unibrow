@@ -120,7 +120,9 @@ public struct NotchRootView: View {
         HStack(spacing: 0) {
             HStack(spacing: 6) {
                 if let indicator = model.indicator {
-                    ClaudeStateArt(indicator.claudeState, cell: Metrics.artCell)
+                    // Open, the list's rows carry the same drawings; the header's one steps down so it clears the
+                    // screen's top edge.
+                    ClaudeStateArt(indicator.claudeState, cell: mode == .expanded ? 1 : Metrics.artCell)
                 }
                 if mode == .expanded {
                     Text("Claude Code")
@@ -153,10 +155,7 @@ private struct ElicitationPeekRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: ElicitationCard.symbol(for: elicitation))
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.orange)
-                .frame(width: 18)
+            ClaudeStateMark(state: .needsYou)
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(request.projectName) · \(elicitation.serverName)")
                     .font(.system(size: 11, weight: .semibold))
@@ -178,10 +177,7 @@ private struct FinishedPeekRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Color.green)
-                .frame(width: 18)
+            ClaudeStateMark(state: .done)
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(notice.projectName) · Done")
                     .font(.system(size: 11, weight: .semibold))
@@ -255,10 +251,7 @@ private struct AlertPeekRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: alert.isFailure ? "exclamationmark.octagon.fill" : "person.crop.circle.badge.questionmark")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(alert.isFailure ? Color.red : Color.orange)
-                .frame(width: 18)
+            ClaudeStateMark(state: alert.isFailure ? .failure : .needsYou)
             VStack(alignment: .leading, spacing: 2) {
                 Text(alert.projectName)
                     .font(.system(size: 11, weight: .semibold))
@@ -289,10 +282,7 @@ private struct PeekRow: View {
     private var toolRow: some View {
         let summary = ToolSummary(toolName: request.toolName, input: request.toolInput, cwd: request.cwd)
         HStack(spacing: 10) {
-            Image(systemName: summary.symbol)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.orange)
-                .frame(width: 18)
+            ClaudeStateMark(state: .needsYou)
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(request.projectName) · \(summary.title)")
                     .font(.system(size: 11, weight: .semibold))

@@ -39,17 +39,10 @@ struct ElicitationCard: View {
         }
     }
 
-    static func symbol(for elicitation: ElicitationRequest) -> String {
-        switch elicitation.content {
-        case .form: "list.bullet.rectangle"
-        case .url: "link"
-        case .unsupported: "puzzlepiece.extension"
-        }
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            CardHeader(context: context, symbol: Self.symbol(for: elicitation), title: elicitation.serverName)
+            CardHeader(context: context, title: elicitation.serverName)
 
             if !elicitation.message.isEmpty {
                 Text(elicitation.message)

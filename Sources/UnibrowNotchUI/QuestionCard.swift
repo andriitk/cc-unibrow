@@ -31,7 +31,7 @@ struct QuestionCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            CardHeader(context: context, symbol: "questionmark.bubble", title: "Claude asks")
+            CardHeader(context: context, title: "Claude asks")
 
             ForEach(questions) { question in
                 QuestionBlock(
