@@ -24,7 +24,10 @@ public struct NotchRootView: View {
     }
 
     private enum Metrics {
-        static let wing: CGFloat = 46
+        /// Wide enough for Claude's drawing (30 cells × 1.5 pt) beside the camera housing.
+        static let wing: CGFloat = 64
+        /// One cell of the left drawing: 3 px on a @2x screen, so the edges stay sharp.
+        static let artCell: CGFloat = 1.5
         static let shoulder: CGFloat = 6
         static let peekWidth: CGFloat = 380
         static let expandedWidth: CGFloat = 500
@@ -116,7 +119,9 @@ public struct NotchRootView: View {
     private var wings: some View {
         HStack(spacing: 0) {
             HStack(spacing: 6) {
-                AgentGlyph()
+                if let indicator = model.indicator {
+                    ClaudeStateArt(indicator.claudeState, cell: Metrics.artCell)
+                }
                 if mode == .expanded {
                     Text("Claude Code")
                         .font(.system(size: 12, weight: .semibold))
@@ -188,6 +193,17 @@ private struct FinishedPeekRow: View {
                     .truncationMode(.tail)
             }
             Spacer(minLength: 0)
+        }
+    }
+}
+
+extension NotchIndicator {
+    /// Claude's pose on the left wing for this state.
+    var claudeState: ClaudeState {
+        switch self {
+        case .waiting: .needsYou
+        case .failure: .failure
+        case .done: .done
         }
     }
 }
