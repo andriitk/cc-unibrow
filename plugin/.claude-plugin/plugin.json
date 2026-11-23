@@ -1,8 +1,8 @@
 {
   "name": "cc-unibrow",
   "displayName": "Unibrow",
-  "version": "0.2.15",
-  "description": "Approve Claude Code from your MacBook notch: prompts, questions and finished turns from every session. Installs the Unibrow app on first run.",
+  "version": "0.3.0",
+  "description": "Approve Claude Code from your MacBook notch: prompts, questions, updates and finished turns from every session. Installs the Unibrow app on first run.",
   "author": {
     "name": "Andrii Tkachuk",
     "url": "https://github.com/andriitk"

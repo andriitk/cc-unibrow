@@ -49,10 +49,9 @@ struct MenuContent: View {
         Divider()
 
         Toggle("Pause (ask in Terminal)", isOn: $model.isPaused)
-        Toggle("Deny Stops the Turn", isOn: $model.denyStopsTurn)
         Toggle("Play Sound", isOn: $model.playsSound)
         Toggle("Show Finished Sessions", isOn: $model.showsFinishedSessions)
-            .help("A quiet green notice when Claude finishes a turn. Nothing to approve.")
+            .help("A quiet notice when Claude ends a turn: green when the session is done, blue (Update) while background agents or tasks still run. Nothing to approve.")
         Toggle("Launch at Login", isOn: Binding(get: { launchAtLogin }, set: { enabled in
             LoginItem.setEnabled(enabled)
             launchAtLogin = LoginItem.isEnabled

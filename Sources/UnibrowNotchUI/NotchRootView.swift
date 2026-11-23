@@ -24,12 +24,9 @@ public struct NotchRootView: View {
     }
 
     private enum Metrics {
-        static let wing: CGFloat = 46
         static let shoulder: CGFloat = 6
         static let peekWidth: CGFloat = 380
         static let expandedWidth: CGFloat = 500
-        /// The red of a failed session's card (`AlertSection`).
-        static let failureTint = Color(red: 1, green: 0.35, blue: 0.32)
     }
 
     private var mode: Mode {
@@ -39,17 +36,10 @@ public struct NotchRootView: View {
         return .compact
     }
 
-    /// Something needs the user (orange), or only "done" notices are left (green).
-    private var needsAttention: Bool { !model.queue.isEmpty || !model.alerts.isEmpty }
-
-    /// The wings' colour while something needs the user: red when a session
-    /// stopped on a failure (its card is red), orange otherwise.
-    private var attentionTint: Color { model.hasFailure ? Metrics.failureTint : .orange }
-
     @Environment(\.notchArtwork) private var artwork
 
-    /// A wing's width: the host's when it draws artwork there.
-    private var wing: CGFloat { artwork?.wingWidth ?? Metrics.wing }
+    /// A wing's width, set by the artwork.
+    private var wing: CGFloat { artwork.wingWidth }
 
     private var width: CGFloat {
         let notch = island.notchSize.width
@@ -126,16 +116,14 @@ public struct NotchRootView: View {
         }
     }
 
-    /// The strips left and right of the camera housing.
+    /// The strips left and right of the camera housing: the artwork's
+    /// drawing on the left, the indicator on the right.
     private var wings: some View {
         HStack(spacing: 0) {
             HStack(spacing: 6) {
-                if let artwork, let indicator = model.indicator {
+                if let indicator = model.indicator {
                     artwork.draw(.wing(indicator, expanded: mode == .expanded))
-                } else if needsAttention {
-                    PulsingDot(tint: attentionTint)
-                } else {
-                    DoneMark()
+                        .accessibilityHidden(true)
                 }
                 if mode == .expanded {
                     Text("Claude Code")
@@ -150,10 +138,8 @@ public struct NotchRootView: View {
             Spacer(minLength: island.notchSize.width)
 
             Group {
-                if artwork != nil, let indicator = model.indicator {
+                if let indicator = model.indicator {
                     IndicatorBadge(indicator: indicator)
-                } else if needsAttention {
-                    CountBadge(count: model.queue.count + model.alerts.count, tint: attentionTint)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
@@ -170,7 +156,7 @@ private struct ElicitationPeekRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            PeekToolMark(request: request, symbol: ElicitationCard.symbol(for: elicitation))
+            RowMark(slot: .request(request))
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(request.projectName) · \(elicitation.serverName)")
                     .font(.system(size: 11, weight: .semibold))
@@ -187,50 +173,17 @@ private struct ElicitationPeekRow: View {
     }
 }
 
-/// A peek row's leading mark: the tool symbol, or the host's drawing alone.
-private struct PeekToolMark: View {
-    let request: PendingRequest
-    let symbol: String
-    @Environment(\.notchArtwork) private var artwork
-
-    var body: some View {
-        if artwork != nil {
-            RowMark(slot: .request(request)) { EmptyView() }
-        } else {
-            Image(systemName: symbol)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.orange)
-                .frame(width: 18)
-        }
-    }
-}
-
-/// A calm green check: something finished, nothing to do.
-private struct DoneMark: View {
-    var body: some View {
-        Image(systemName: "checkmark.circle.fill")
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(Color.green)
-            .accessibilityLabel("A session finished")
-    }
-}
-
 private struct FinishedPeekRow: View {
     let notice: FinishedSession
 
     var body: some View {
         HStack(spacing: 10) {
-            RowMark(slot: .finished) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color.green)
-                    .frame(width: 18)
-            }
+            RowMark(slot: NotchArtwork.Slot(notice))
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(notice.projectName) · Done")
+                Text("\(notice.projectName) · \(notice.isUpdate ? "Update" : "Done")")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.6))
-                Text(notice.summary ?? "Claude finished and is waiting for you")
+                Text(notice.updateLine ?? notice.summary ?? "Claude finished and is waiting for you")
                     .font(.system(size: 12))
                     .foregroundStyle(.white)
                     .lineLimit(1)
@@ -241,57 +194,12 @@ private struct FinishedPeekRow: View {
     }
 }
 
-private struct PulsingDot: View {
-    var tint: Color = .orange
-    @State private var isPulsing = false
-
-    var body: some View {
-        Circle()
-            .fill(tint)
-            .frame(width: 8, height: 8)
-            .overlay(
-                Circle()
-                    .stroke(tint.opacity(0.6), lineWidth: 2)
-                    .scaleEffect(isPulsing ? 2.2 : 1)
-                    .opacity(isPulsing ? 0 : 1)
-            )
-            .onAppear {
-                withAnimation(.easeOut(duration: 1.4).repeatForever(autoreverses: false)) {
-                    isPulsing = true
-                }
-            }
-            .accessibilityHidden(true)
-    }
-}
-
-private struct CountBadge: View {
-    let count: Int
-    var tint: Color = .orange
-
-    var body: some View {
-        Text("\(count)")
-            .font(.system(size: 11, weight: .bold, design: .rounded))
-            .monospacedDigit()
-            .foregroundStyle(.black)
-            .padding(.horizontal, 7)
-            .frame(minWidth: 20, minHeight: 18)
-            .background(tint, in: Capsule())
-            .contentTransition(.numericText())
-            .accessibilityLabel("\(count) items need you")
-    }
-}
-
 private struct AlertPeekRow: View {
     let alert: SessionAlert
 
     var body: some View {
         HStack(spacing: 10) {
-            RowMark(slot: alert.isFailure ? .failure : .needsInput) {
-                Image(systemName: alert.isFailure ? "exclamationmark.octagon.fill" : "person.crop.circle.badge.questionmark")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(alert.isFailure ? Color.red : Color.orange)
-                    .frame(width: 18)
-            }
+            RowMark(slot: NotchArtwork.Slot(alert))
             VStack(alignment: .leading, spacing: 2) {
                 Text(alert.projectName)
                     .font(.system(size: 11, weight: .semibold))
@@ -322,7 +230,7 @@ private struct PeekRow: View {
     private var toolRow: some View {
         let summary = ToolSummary(toolName: request.toolName, input: request.toolInput, cwd: request.cwd)
         HStack(spacing: 10) {
-            PeekToolMark(request: request, symbol: summary.symbol)
+            RowMark(slot: .request(request))
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(request.projectName) · \(summary.title)")
                     .font(.system(size: 11, weight: .semibold))
@@ -338,7 +246,7 @@ private struct PeekRow: View {
     }
 }
 
-/// The right wing while a host draws the left one: a capsule with the count, ✓ or !.
+/// The right wing: a capsule with the count, ✓, ! or the update mark.
 private struct IndicatorBadge: View {
     let indicator: NotchIndicator
 
@@ -359,6 +267,7 @@ private struct IndicatorBadge: View {
         case .waiting(let count): Text("\(count)").contentTransition(.numericText())
         case .failure: Text("!")
         case .done: Image(systemName: "checkmark").font(.system(size: 9, weight: .heavy))
+        case .update: Image(systemName: "ellipsis").font(.system(size: 9, weight: .heavy))
         }
     }
 
@@ -368,6 +277,7 @@ private struct IndicatorBadge: View {
         // The red of a failed session's card (`AlertSection`).
         case .failure: Color(red: 1, green: 0.35, blue: 0.32)
         case .done: .green
+        case .update: NotchIndicator.updateTint
         }
     }
 
@@ -376,6 +286,12 @@ private struct IndicatorBadge: View {
         case .waiting(let count): count == 1 ? "1 item needs you" : "\(count) items need you"
         case .failure: "A session failed"
         case .done: "A session finished"
+        case .update: "Claude Code replied; background work goes on"
         }
     }
+}
+
+extension NotchIndicator {
+    /// The calm blue of an update: lower than green, nothing to do.
+    static let updateTint = Color(red: 0.36, green: 0.62, blue: 1)
 }

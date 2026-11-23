@@ -38,8 +38,11 @@ struct RequestListView: View {
                 if !model.alerts.isEmpty {
                     AlertSection(model: model)
                 }
-                if !model.finished.isEmpty {
-                    FinishedSection(model: model)
+                if !model.finished.updateItems.isEmpty {
+                    NoticeSection(model: model, kind: .update)
+                }
+                if !model.finished.finishedItems.isEmpty {
+                    NoticeSection(model: model, kind: .finished, showsClear: model.finished.updateItems.isEmpty)
                 }
             }
             .padding(.horizontal, 12)
@@ -156,29 +159,40 @@ private struct WindowFocusHint: View {
     }
 }
 
-/// Sessions that finished their turn. Deliberately quieter than request cards:
-/// no buttons to decide, just "done" with a way to jump there.
-private struct FinishedSection: View {
+/// Sessions that ended their turn: "Updates" (Claude replied, background
+/// work goes on) and "Finished" (done). Deliberately quieter than request
+/// cards: no buttons to decide, just a way to jump there. One Clear, on the
+/// first section, dismisses every notice, updates and finished alike.
+private struct NoticeSection: View {
+    enum Kind { case update, finished }
+
     let model: any NotchHost
+    let kind: Kind
+    var showsClear = true
+
+    private var items: [FinishedSession] {
+        kind == .update ? model.finished.updateItems : model.finished.finishedItems
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // No check here: the wing and every row already show one.
             HStack(spacing: 6) {
-                Text("Finished")
+                Text(kind == .update ? "Updates" : "Finished")
                     .font(.system(size: 11, weight: .semibold))
-                Text("nothing to do")
+                Text(kind == .update ? "still working" : "nothing to do")
                     .font(.system(size: 10))
                     .foregroundStyle(.white.opacity(0.35))
                 Spacer(minLength: 0)
-                Button("Clear") { model.clearFinished() }
-                    .buttonStyle(.pill(.quiet))
-                    .help("Dismiss all finished sessions")
+                if showsClear {
+                    Button("Clear") { model.clearFinished() }
+                        .buttonStyle(.pill(.quiet))
+                        .help("Dismiss all updates and finished sessions")
+                }
             }
-            .foregroundStyle(Color.green.opacity(0.8))
+            .foregroundStyle(kind == .update ? NotchIndicator.updateTint.opacity(0.9) : Color.green.opacity(0.8))
             .padding(.horizontal, 4)
 
-            ForEach(model.finished.items) { notice in
+            ForEach(items) { notice in
                 FinishedRow(
                     notice: notice,
                     agents: model.subagents.badge(sessionID: notice.sessionID),
@@ -205,12 +219,8 @@ private struct FinishedRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
-            RowMark(slot: .finished) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Color.green.opacity(0.85))
-                    .padding(.top, 1)
-            }
+            RowMark(slot: NotchArtwork.Slot(notice))
+                .padding(.top, 2)
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
@@ -244,6 +254,12 @@ private struct FinishedRow: View {
                             .monospacedDigit()
                             .foregroundStyle(.white.opacity(0.4))
                     }
+                }
+                if let line = notice.updateLine {
+                    Text(line)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(NotchIndicator.updateTint)
+                        .lineLimit(1)
                 }
                 if let summary = notice.summary {
                     Text(summary)

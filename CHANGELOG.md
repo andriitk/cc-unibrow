@@ -6,6 +6,33 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-23
+
+### Added
+
+- **Updates.** A turn that ends while background agents or background
+  shells still run is no longer shown as finished: it shows under
+  **Updates** in blue, "Claude Code replied · 2 agents still working", and
+  turns into a **Finished** row once the follow-up turn ends with nothing
+  running. Read from the `Stop` payload's `background_tasks`; no delay.
+  The right wing gets a fourth state, a calm blue mark, below red, orange
+  and green. No sound. **Show Finished Sessions** covers updates too.
+
+### Changed
+
+- The notch shows the Claude Code pixel glyph on its left and on every
+  row, instead of the pulsing dot and per-row symbols. The right side shows
+  the count, ✓, ! or the update mark. Cards always use the two-row header
+  with the tool as the first chip.
+- **Deny always stops the turn**, as a refusal in the terminal does. The
+  "Deny Stops the Turn" setting is gone and its stored value is deleted.
+  Rejecting a plan still keeps Claude planning.
+- For apps that embed the notch view: `notchArtwork` is no longer optional
+  (the default is the glyph), and its slots carry their data:
+  `.failure(SessionAlert)`, `.needsInput(SessionAlert)`,
+  `.finished(FinishedSession)` and the new `.update(FinishedSession)`.
+  `NotchIndicator` has a new `.update` case. See docs/ARCHITECTURE.md.
+
 ## [0.2.15] - 2026-11-20
 
 ### Fixed
