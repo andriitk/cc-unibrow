@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 import UnibrowCore
 @testable import UnibrowNotchUI
@@ -37,10 +38,12 @@ struct NotchHostTests {
         #expect(!host.hasFailure)
     }
 
-    @Test("The indicator: red beats the count, orange counts what waits, green only for finished sessions")
+    @Test("The indicator: red beats the count, orange counts what waits, green for finished, blue only for updates")
     func indicator() {
         let host = RecordingHost()
         #expect(host.indicator == nil)
+        host.finished.record(FinishedSession(sessionID: "u1", cwd: "/p", kind: .update(BackgroundWork(agents: 2))))
+        #expect(host.indicator == .update)
         host.finished.record(FinishedSession(sessionID: "s1", cwd: "/p"))
         #expect(host.indicator == .done)
         host.queue.append(Requests.bash)
@@ -96,5 +99,68 @@ struct NotchHostTests {
             .sendToTerminal(id),
             .bringToFront(id),
         ])
+    }
+
+    @Test("An update alone keeps the island open with the blue indicator; the real finish turns it green")
+    func updateThenFinish() {
+        let host = RecordingHost()
+        host.finished.record(FinishedSession(sessionID: "s1", cwd: "/p", kind: .update(BackgroundWork(tasks: 1))))
+        #expect(host.hasContent)
+        #expect(host.indicator == .update)
+        host.finished.record(FinishedSession(sessionID: "s1", cwd: "/p"))
+        #expect(host.finished.count == 1)
+        #expect(host.indicator == .done)
+    }
+
+    @Test("Each row's slot carries its data: the alert, the notice and its kind")
+    func slots() {
+        let failure = SessionAlert(sessionID: "f", cwd: "/p", kind: .stopFailure(.rateLimit, details: nil))
+        let waiting = SessionAlert(sessionID: "w", cwd: "/p", kind: .needsInput(title: nil, message: "Hi"))
+        let done = FinishedSession(sessionID: "d", cwd: "/p")
+        let update = FinishedSession(sessionID: "u", cwd: "/p", kind: .update(BackgroundWork(agents: 1, tasks: 1)))
+        #expect(NotchArtwork.Slot(failure) == .failure(failure))
+        #expect(NotchArtwork.Slot(waiting) == .needsInput(waiting))
+        #expect(NotchArtwork.Slot(done) == .finished(done))
+        #expect(NotchArtwork.Slot(update) == .update(update))
+        guard case .update(let notice) = NotchArtwork.Slot(update) else { return }
+        #expect(notice.backgroundWork?.total == 2)
+    }
+
+    @Test("A host's artwork gets the row's slot, details included")
+    func artworkReceivesSlot() {
+        final class Seen { var slots: [NotchArtwork.Slot] = [] }
+        let seen = Seen()
+        let artwork = NotchArtwork(wingWidth: 52, rowWidth: 30) { slot in
+            seen.slots.append(slot)
+            return AnyView(Color.clear.frame(width: 30, height: 20))
+        }
+        let update = FinishedSession(sessionID: "u", cwd: "/p", kind: .update(BackgroundWork(agents: 2)))
+        let failure = SessionAlert(sessionID: "f", cwd: "/p", kind: .stopFailure(.overloaded, details: nil))
+        for slot in [NotchArtwork.Slot(update), NotchArtwork.Slot(failure)] {
+            _ = ImageRenderer(content: RowMark(slot: slot).environment(\.notchArtwork, artwork)).nsImage
+        }
+        #expect(seen.slots == [.update(update), .failure(failure)])
+    }
+
+    @Test("The Claude Code glyph: 14 × 8 cells, drawn at a whole number of points per cell")
+    func glyph() throws {
+        #expect(ClaudeCodeGlyph.rows.count == 8)
+        #expect(ClaudeCodeGlyph.rows.allSatisfy { $0.count == ClaudeCodeGlyph.columns && $0.allSatisfy { "#.".contains($0) } })
+        #expect(ClaudeCodeGlyph.columns == 14)
+        // Same cells as Unibrow Pro's PixelArt.glyph (variant E).
+        #expect(ClaudeCodeGlyph.rows.joined().filter { $0 == "#" }.count == 72)
+
+        let renderer = ImageRenderer(content: ClaudeCodeGlyph(cell: 1.5))
+        renderer.scale = 2
+        let image = try #require(renderer.cgImage)
+        #expect(image.width == 42)
+        #expect(image.height == 24)
+    }
+
+    @Test("Unibrow's default artwork is the glyph, so the notch never falls back to symbols")
+    func defaultArtwork() {
+        let artwork = EnvironmentValues().notchArtwork
+        #expect(artwork.wingWidth == 46)
+        #expect(artwork.rowWidth == 22)
     }
 }

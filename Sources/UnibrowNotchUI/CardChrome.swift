@@ -19,51 +19,27 @@ struct RequestContext {
     }
 }
 
-/// The card's tool symbol, without artwork.
-struct ToolSymbol: View {
-    let symbol: String
-
-    var body: some View {
-        Image(systemName: symbol)
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(.orange)
-            .frame(width: 16)
-    }
-}
-
-/// Shared card header: tool, branch, session, host app and age. While an
-/// embedding app draws artwork, two rows: its drawing, the title, host app
+/// Shared card header, two rows: the artwork's drawing, the title, host app
 /// and age; then, from the card's left edge like the body, the tool as the
-/// first chip before the others. Otherwise one row, as before.
+/// first chip before branch, agents and session.
 struct CardHeader: View {
     let context: RequestContext
     let symbol: String
     let title: String
-    @Environment(\.notchArtwork) private var artwork
 
     var body: some View {
-        if artwork != nil {
-            // Every row after the first starts at the card's left edge, like
-            // the card's body below it: one edge, nothing indented.
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 8) {
-                    RowMark(slot: .request(context.request)) { EmptyView() }
-                    titleText
-                    Spacer(minLength: 6)
-                    trailing
-                }
-                HStack(spacing: 6) {
-                    ToolChip(symbol: symbol)
-                    chips
-                }
-            }
-        } else {
-            HStack(spacing: 6) {
-                ToolSymbol(symbol: symbol)
+        // Every row after the first starts at the card's left edge, like
+        // the card's body below it: one edge, nothing indented.
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                RowMark(slot: .request(context.request))
                 titleText
-                chips
                 Spacer(minLength: 6)
                 trailing
+            }
+            HStack(spacing: 6) {
+                ToolChip(symbol: symbol)
+                chips
             }
         }
     }

@@ -53,12 +53,8 @@ private struct AlertRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
-            RowMark(slot: alert.isFailure ? .failure : .needsInput) {
-                Image(systemName: alert.isFailure ? "exclamationmark.octagon.fill" : "person.crop.circle.badge.questionmark")
-                    .font(.system(size: 13))
-                    .foregroundStyle(tint)
-                    .padding(.top, 1)
-            }
+            RowMark(slot: NotchArtwork.Slot(alert))
+                .padding(.top, 2)
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {

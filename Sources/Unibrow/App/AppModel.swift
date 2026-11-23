@@ -44,7 +44,8 @@ final class AppModel: NotchHost {
         didSet { defaults.set(playsSound, forKey: Keys.playsSound) }
     }
 
-    /// Show a quiet "done" notice when a session finishes its turn. Alerts (a
+    /// Show a quiet "done" notice when a session finishes its turn, and an
+    /// "update" when it ends a turn while background work goes on. Alerts (a
     /// failed turn, an agent waiting for input) are not "done" notices and
     /// show either way: they need the user.
     var showsFinishedSessions: Bool {
