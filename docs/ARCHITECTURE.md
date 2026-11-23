@@ -17,8 +17,8 @@ Unibrow has three parts: a Claude Code **plugin** that registers hooks, a tiny
 |---|---|
 | `plugin/` | The Claude Code plugin: `hooks/hooks.json` and `scripts/unibrow-hook`, a POSIX shell shim. The shim execs the relay that the app links on launch, so the plugin never needs to know where the app is installed. Without the app it is a no-op (and says so once per session). |
 | `Sources/UnibrowHook` | `unibrow-hook`, the relay. Reads the hook JSON from stdin, adds session details (git branch, repository root, process ancestry, and for a risky Bash request an impact note), sends it to the app, and for a permission request waits for the decision and prints it in Claude Code's format. |
-| `Sources/UnibrowCore` | Everything worth testing, with no UI: wire protocol, hook payloads and output, the pending-request queue, finished-session notices, running subagents, tool summaries, risky-command recognition and impact notes, questions, window-title matching, git and process lookups. |
-| `Sources/UnibrowNotchUI` | The notch's SwiftUI views: the island, request cards, question and MCP forms, alerts, finished notices. A library with no app code: it reads and acts only through `NotchHost` (below). |
+| `Sources/UnibrowCore` | Everything worth testing, with no UI: wire protocol, hook payloads and output, the pending-request queue, update and finished notices (with the background work a `Stop` reports), running subagents, tool summaries, risky-command recognition and impact notes, questions, window-title matching, git and process lookups. |
+| `Sources/UnibrowNotchUI` | The notch's SwiftUI views: the island, request cards, question and MCP forms, alerts, update and finished notices, the Claude Code glyph. A library with no app code: it reads and acts only through `NotchHost` (below). |
 | `Sources/Unibrow` | The app: socket server, `AppModel` (the `NotchHost`), notch panel, menu bar, window focus, plugin and relay setup. Kept thin. |
 | `.claude-plugin/marketplace.json` | Makes the repository itself a plugin marketplace. |
 | `install.sh`, `scripts/` | Installer, app bundling, icon rendering, demo requests. |
@@ -134,7 +134,9 @@ inside a subagent), plus `branch`, `projectRoot` and `ancestorPIDs` gathered
 by the relay, and for a risky Bash `PermissionRequest` an optional `impact`
 (`{"lines": ["…"]}`, at most three lines, see [Impact notes](#impact-notes)). `DecisionMessage` is one of `allow`, `allowAlways` (forwards Claude Code's
 own `permission_suggestions` as `updatedPermissions`), `allowWithInput` (question
-answers), `deny` (with `interrupt`), `elicitation` (`action` accept, decline
+answers), `deny` (with `interrupt`: a card's **Deny** always sets it, so
+Claude stops the turn as after a refusal in the terminal, while rejecting a plan
+never does; `Decision.deny(_:)`), `elicitation` (`action` accept, decline
 or cancel, with `content` for a form) and `passthrough`. The relay prints a
 decision only for the event it belongs to; anything else prints nothing. For
 an `Elicitation` the relay also sends `propertyOrder`, the form's property
@@ -277,7 +279,7 @@ tasks, per the hooks reference) lists fewer `subagent`/`teammate` tasks than
 are tracked, which drops the oldest extra entries; and six hours without any
 event from the agent (`maxAge`, a net for a missed stop). At most 64 agents
 per session and 100 sessions. The app shows the count as a chip on the
-session's cards, alerts and finished notices; it never peeks, plays a sound
+session's cards, alerts, updates and finished notices; it never peeks, plays a sound
 or counts toward the pending number.
 
 ## MCP elicitations
