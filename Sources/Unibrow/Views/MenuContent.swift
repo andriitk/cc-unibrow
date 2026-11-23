@@ -49,7 +49,6 @@ struct MenuContent: View {
         Divider()
 
         Toggle("Pause (ask in Terminal)", isOn: $model.isPaused)
-        Toggle("Deny Stops the Turn", isOn: $model.denyStopsTurn)
         Toggle("Play Sound", isOn: $model.playsSound)
         Toggle("Show Finished Sessions", isOn: $model.showsFinishedSessions)
             .help("A quiet green notice when Claude finishes a turn. Nothing to approve.")

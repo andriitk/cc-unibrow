@@ -75,6 +75,15 @@ struct HookOutputTests {
         #expect(try json(.allow) == #"{"hookSpecificOutput":{"decision":{"behavior":"allow"},"hookEventName":"PermissionRequest"}}"#)
     }
 
+    @Test("Deny always stops the turn, as in the terminal; rejecting a plan keeps planning")
+    func denyStopsTheTurn() {
+        #expect(Decision.deny(Fixtures.request(tool: "Bash")) == .deny(message: "Denied from Unibrow.", interrupt: true))
+        guard case .deny(_, let interrupt) = Decision.deny(Fixtures.request(tool: "ExitPlanMode")) else {
+            Issue.record("not a deny"); return
+        }
+        #expect(!interrupt)
+    }
+
     @Test func denyWithInterrupt() throws {
         #expect(try json(.deny(message: "Denied", interrupt: true))
             == #"{"hookSpecificOutput":{"decision":{"behavior":"deny","interrupt":true,"message":"Denied"},"hookEventName":"PermissionRequest"}}"#)

@@ -208,6 +208,18 @@ public enum Decision: Sendable, Hashable {
     case passthrough
 }
 
+extension Decision {
+    /// Deny from the notch. Like a refusal in the terminal, it always stops
+    /// the turn, so Claude waits for the user's next instruction (there is no
+    /// setting for it since 0.3.0). Rejecting a plan means "keep planning",
+    /// so it never stops the turn.
+    public static func deny(_ request: PendingRequest) -> Decision {
+        request.isPlanApproval
+            ? .deny(message: "The user wants to keep planning. Ask what to change in the plan.", interrupt: false)
+            : .deny(message: "Denied from Unibrow.", interrupt: true)
+    }
+}
+
 extension Decision: Codable {
     private enum CodingKeys: String, CodingKey {
         case behavior, updatedPermissions, updatedInput, message, interrupt, action, content

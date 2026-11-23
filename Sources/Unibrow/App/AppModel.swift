@@ -40,12 +40,6 @@ final class AppModel: NotchHost {
         }
     }
 
-    /// Deny also stops Claude's turn, so it waits for your next instruction
-    /// instead of trying another approach.
-    var denyStopsTurn: Bool {
-        didSet { defaults.set(denyStopsTurn, forKey: Keys.denyStopsTurn) }
-    }
-
     var playsSound: Bool {
         didSet { defaults.set(playsSound, forKey: Keys.playsSound) }
     }
@@ -79,7 +73,9 @@ final class AppModel: NotchHost {
 
     private enum Keys {
         static let paused = "paused"
-        static let denyStopsTurn = "denyStopsTurn"
+        /// The removed "Deny Stops the Turn" setting (until 0.2.15): deleted
+        /// at launch. Deny now always stops the turn, as in the terminal.
+        static let removedDenyStopsTurn = "denyStopsTurn"
         static let playsSound = "playsSound"
         static let windowFocusHintDismissed = "windowFocusHintDismissed"
         static let showsFinishedSessions = "showsFinishedSessions"
@@ -89,12 +85,11 @@ final class AppModel: NotchHost {
         self.server = server
         self.defaults = defaults
         defaults.register(defaults: [
-            Keys.denyStopsTurn: true,
             Keys.playsSound: true,
             Keys.showsFinishedSessions: true,
         ])
         isPaused = defaults.bool(forKey: Keys.paused)
-        denyStopsTurn = defaults.bool(forKey: Keys.denyStopsTurn)
+        defaults.removeObject(forKey: Keys.removedDenyStopsTurn)
         playsSound = defaults.bool(forKey: Keys.playsSound)
         showsFinishedSessions = defaults.bool(forKey: Keys.showsFinishedSessions)
     }
@@ -181,10 +176,7 @@ final class AppModel: NotchHost {
         let decision: Decision = switch choice {
         case .allow: .allow
         case .allowAlways: .allowAlways(updatedPermissions: request.suggestions)
-        case .deny where request.isPlanApproval:
-            // Rejecting a plan means "keep planning", never "stop".
-            .deny(message: "The user wants to keep planning. Ask what to change in the plan.", interrupt: false)
-        case .deny: .deny(message: "Denied from Unibrow.", interrupt: denyStopsTurn)
+        case .deny: .deny(request)
         }
         server.respond(to: request.id, with: decision)
     }
