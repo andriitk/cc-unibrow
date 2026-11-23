@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Unibrow — Approve Claude Code from your MacBook notch</title>
-<meta name="description" content="Every permission prompt, question, plan and “done” from all your Claude Code sessions, in one list that grows out of the MacBook notch. Free, open source, local only.">
+<meta name="description" content="Every permission prompt, question, plan, update and “done” from all your Claude Code sessions, in one list that grows out of the MacBook notch. Free, open source, local only.">
 <meta name="theme-color" content="#000000">
 <meta name="color-scheme" content="dark">
 <link rel="canonical" href="https://andriitk.github.io/cc-unibrow/">
@@ -32,6 +32,7 @@
   --brand-deep: #e8801a;
   --brand-glow: rgba(248,154,34,.35);
   --ok: #4ade80;
+  --upd: #5c9eff;
   --deny: #f87171;
   --radius: 20px;
   --radius-sm: 12px;
@@ -179,18 +180,24 @@ h1 .accent { color: var(--brand); }
 .wing-l { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
 .wing-l .label { opacity: 0; transition: opacity .3s; white-space: nowrap; color: rgba(255,255,255,.85); }
 .island.open .wing-l .label { opacity: 1; transition-delay: .15s; }
-.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 0 var(--brand-glow); transition: opacity .25s; }
-.island[data-state="ask"] .dot { animation: pulse 1.6s infinite; }
-.done { width: 13px; height: 13px; color: var(--ok); display: none; }
-.island[data-state="done"] .dot, .island[data-state="idle"] .dot { display: none; }
-.island[data-state="done"] .done { display: block; }
+/* Claude Code's glyph on the left wing and every row (ClaudeCodeGlyph, 14 × 8 cells). */
+.glyph { display: block; flex: none; width: 21px; height: 12px; shape-rendering: crispEdges; }
+.glyph.row { width: 17.5px; height: 10px; margin-top: 4px; }
+.glyph.ti { width: 17.5px; height: 10px; }
+.done { width: 13px; height: 13px; color: var(--ok); }
 .count {
   min-width: 20px; height: 18px; padding: 0 6px; border-radius: 999px; background: var(--brand); color: #000;
   font: 700 11px/18px var(--sans); font-variant-numeric: tabular-nums; text-align: center;
   transition: opacity .25s, transform .3s var(--ease-spring);
 }
 .count.bump { animation: bump .45s var(--ease-spring); }
-.island:not([data-state="ask"]) .count { opacity: 0; transform: scale(.5); }
+/* Right wing: orange count (needs you) > red ! (a session failed) > green ✓ (done) > blue ••• (update). */
+.count { display: inline-flex; align-items: center; justify-content: center; transition: opacity .25s, transform .3s var(--ease-spring), background-color .25s; }
+.count svg { width: 10px; height: 10px; }
+.island[data-state="idle"] .count { opacity: 0; transform: scale(.5); }
+.island[data-state="fail"] .count { background: #ff5a52; }
+.island[data-state="done"] .count { background: #4cd964; }
+.island[data-state="update"] .count { background: var(--upd); }
 .panel {
   min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.2) transparent;
   padding: 4px 12px 14px; opacity: 0; transform: translateY(-6px); transition: opacity .25s, transform .35s var(--ease-out);
@@ -340,6 +347,10 @@ h1 .accent { color: var(--brand); }
 .fin-h { display: flex; align-items: center; gap: 6px; padding: 0 4px 6px; font-size: 11px; font-weight: 600; color: rgba(74,222,128,.85); }
 .fin-h small { font-size: 10px; font-weight: 400; color: rgba(255,255,255,.4); }
 .fin-h .sp { flex: 1; }
+.fin-h.upd { color: rgba(92,158,255,.95); }
+.fin-h + .slot + .fin-h { margin-top: 10px; }
+.upd-hl { font-size: 12px; font-weight: 500; color: var(--upd); }
+.ti-badge.upd { background: rgba(92,158,255,.14); color: var(--upd); font: 800 15px/1 var(--sans); letter-spacing: .05em; }
 
 .stage-ctl { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 10px; margin-top: 28px; }
 .stage-ctl .btn { min-height: 40px; padding: 0 14px; font-size: 14px; }
@@ -354,11 +365,6 @@ h1 .accent { color: var(--brand); }
   .island .opt { padding: 9px 10px; }
 }
 
-@keyframes pulse {
-  0% { box-shadow: 0 0 0 0 var(--brand-glow); }
-  70% { box-shadow: 0 0 0 9px rgba(248,154,34,0); }
-  100% { box-shadow: 0 0 0 0 rgba(248,154,34,0); }
-}
 
 /* ---------- Sections ---------- */
 section { padding: 120px 0; }
@@ -408,6 +414,8 @@ h2 { margin: 12px 0 0; font-size: clamp(34px, 5vw, 56px); line-height: 1.06; let
   font-size: 12px; text-align: left;
 }
 .fin .done { display: block; margin-top: 2px; }
+.fin .glyph { margin-top: 5px; }
+.fin .u { color: var(--upd); margin-top: 2px; font-size: 13px; }
 .fin b { font-weight: 650; }
 .fin .s { color: rgba(255,255,255,.55); margin-top: 2px; }
 
@@ -517,6 +525,7 @@ footer a:hover { color: var(--text); }
   <symbol id="i-type" viewBox="0 0 24 24"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" x2="15" y1="20" y2="20"/><line x1="12" x2="12" y1="4" y2="20"/></symbol>
   <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
   <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="g-cc" viewBox="0 0 14 8"><path fill="#D97757" stroke="none" d="M2 0h10v1h-10zM2 1h10v1h-10zM2 2h2v1h-2zM5 2h4v1h-4zM10 2h2v1h-2zM2 3h2v1h-2zM5 3h4v1h-4zM10 3h2v1h-2zM0 4h14v1h-14zM0 5h14v1h-14zM3 6h1v1h-1zM5 6h1v1h-1zM8 6h1v1h-1zM10 6h1v1h-1zM3 7h1v1h-1zM5 7h1v1h-1zM8 7h1v1h-1zM10 7h1v1h-1z"/></symbol>
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
   <symbol id="i-form" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 8h10"/><path d="M7 12h10"/><path d="M7 16h6"/></symbol>
   <symbol id="i-octagon" viewBox="0 0 24 24"><path d="M12 16h.01"/><path d="M12 8v4"/><path d="M15.312 2a2 2 0 0 1 1.414.586l4.688 4.688A2 2 0 0 1 22 8.688v6.624a2 2 0 0 1-.586 1.414l-4.688 4.688a2 2 0 0 1-1.414.586H8.688a2 2 0 0 1-1.414-.586l-4.688-4.688A2 2 0 0 1 2 15.312V8.688a2 2 0 0 1 .586-1.414l4.688-4.688A2 2 0 0 1 8.688 2z"/></symbol>
@@ -542,7 +551,7 @@ footer a:hover { color: var(--text); }
   <div class="wrap">
     <span class="pill"><b>Free</b>Open source · macOS 14+ · Claude Code plugin</span>
     <h1><span class="grad">Approve Claude Code from your</span> <span class="accent">notch.</span></h1>
-    <p class="lede">Every permission prompt, question, plan and “done” from all your Claude Code sessions, in one list that grows out of the MacBook notch. Hover, read, click. Never switch windows.</p>
+    <p class="lede">Every permission prompt, question, plan, update and “done” from all your Claude Code sessions, in one list that grows out of the MacBook notch. Hover, read, click. Never switch windows.</p>
 
     <div class="install" role="group" aria-label="Install command">
       <code><span class="p">❯ </span><span class="cmd">/plugin install cc-unibrow --marketplace andriitk/cc-unibrow</span></code>
@@ -573,8 +582,7 @@ footer a:hover { color: var(--text); }
         <div class="island" id="island" data-state="idle" role="region" aria-label="Unibrow notch demo">
           <button class="wings" id="wings" type="button" aria-expanded="false" aria-controls="panel" aria-label="Claude Code, nothing waiting">
             <span class="wing-l">
-              <span class="dot" aria-hidden="true"></span>
-              <svg class="icon done" aria-hidden="true"><use href="#i-check-circle"/></svg>
+              <svg class="glyph" aria-hidden="true"><use href="#g-cc"/></svg>
               <span class="label">Claude Code</span>
             </span>
             <span class="count" id="count" aria-hidden="true">0</span>
@@ -609,7 +617,7 @@ footer a:hover { color: var(--text); }
   <div class="wrap center reveal">
     <div class="eyebrow">See it in action</div>
     <h2>The one place on screen you always see.</h2>
-    <p class="sub">A pulsing dot means Claude needs you. Hover to see what, and answer right there. The terminal keeps working exactly as before.</p>
+    <p class="sub">A number beside the Claude Code glyph means Claude needs you. Hover to see what, and answer right there. The terminal keeps working exactly as before.</p>
     <div class="video">
       <video id="video" src="assets/demo.mp4" poster="assets/poster.jpg" muted playsinline loop preload="metadata" controls aria-label="Unibrow demo video, 37 seconds, no sound"></video>
     </div>
@@ -629,10 +637,10 @@ footer a:hover { color: var(--text); }
       <article class="tile wide reveal">
         <div class="ti-badge"><svg class="icon"><use href="#i-terminal"/></svg></div>
         <h3>Permission requests</h3>
-        <p>The exact command, or a diff of the edit. Allow once, Always, or Deny. Long or multi-line input and extra fields are flagged, and <em>Show full …</em> opens all of it.</p>
+        <p>The exact command, or a diff of the edit. Allow once, Always, or Deny, which stops Claude’s turn as in the terminal. Long or multi-line input and extra fields are flagged, and <em>Show full …</em> opens all of it.</p>
         <div class="mock">
           <div class="req">
-            <div class="req-h"><svg class="icon ti"><use href="#i-terminal"/></svg><b>Bash</b>
+            <div class="req-h"><svg class="glyph ti" aria-hidden="true"><use href="#g-cc"/></svg><b>Bash</b>
               <span class="chip"><svg class="icon"><use href="#i-branch"/></svg>main</span><span class="chip"><svg class="icon"><use href="#i-terminal"/></svg>a3f1</span>
               <span class="sp"></span><span class="app">Terminal <svg class="icon"><use href="#i-arrow"/></svg></span><span class="age">12s</span></div>
             <div class="req-body">npm run db:migrate -- --env staging</div>
@@ -666,10 +674,20 @@ footer a:hover { color: var(--text); }
       <article class="tile reveal">
         <div class="ti-badge ok"><svg class="icon"><use href="#i-check-circle"/></svg></div>
         <h3>Finished</h3>
-        <p>A quiet green row when a session completes its turn. No sound, no number.</p>
+        <p>A quiet green row and a green ✓ when a session is done. No sound, no number.</p>
         <div class="fin">
-          <svg class="icon done"><use href="#i-check-circle"/></svg>
+          <svg class="glyph" aria-hidden="true"><use href="#g-cc"/></svg>
           <div><b>aurora-web</b> <span class="chip">feature/charts</span><div class="s">Added the visx line chart and tests…</div></div>
+        </div>
+      </article>
+
+      <article class="tile reveal">
+        <div class="ti-badge upd" aria-hidden="true">•••</div>
+        <h3>Updates</h3>
+        <p>Claude replied, but background agents or tasks still run. A blue row says what is still working; the real Finished replaces it.</p>
+        <div class="fin">
+          <svg class="glyph" aria-hidden="true"><use href="#g-cc"/></svg>
+          <div><b>api</b> <span class="chip">feature/retries</span><div class="u">Claude Code replied · 2 agents still working</div></div>
         </div>
       </article>
 
@@ -689,7 +707,7 @@ footer a:hover { color: var(--text); }
         <div class="ti-badge" style="background:rgba(255,90,82,.12);color:#ff6b63"><svg class="icon"><use href="#i-octagon"/></svg></div>
         <h3>Session stopped</h3>
         <p>A turn that ends on an API error shows up in red: rate limit, authentication, billing and more, with a hint for what to do next.</p>
-        <div class="alert fail" style="margin-top:22px"><svg class="icon"><use href="#i-octagon"/></svg>
+        <div class="alert fail" style="margin-top:22px"><svg class="glyph row" aria-hidden="true"><use href="#g-cc"/></svg>
           <div class="al-main"><div class="al-hl">Session stopped: Rate limit reached</div><div class="req-sub">Wait for the limit to reset, then continue.</div></div></div>
       </article>
 
@@ -699,14 +717,14 @@ footer a:hover { color: var(--text); }
         <p>When a background agent is waiting for your input, a row says so. Click it to open that session.</p>
       </article>
 
-      <article class="tile half reveal">
+      <article class="tile reveal">
         <div class="ti-badge"><svg class="icon"><use href="#i-terminal"/></svg></div>
         <h3>Works where Claude Code runs</h3>
         <p>Any terminal, the terminals inside IDEs, and the Claude desktop app.</p>
         <div class="apps"><span>Terminal</span><span>iTerm2</span><span>Ghostty</span><span>Warp</span><span>tmux</span><span>Cursor</span><span>VS Code</span><span>JetBrains</span><span>Claude app</span></div>
       </article>
 
-      <article class="tile half reveal">
+      <article class="tile reveal">
         <div class="ti-badge"><svg class="icon"><use href="#i-pause"/></svg></div>
         <h3>Steps aside when you want</h3>
         <p>Pause from the menu bar and every prompt goes back to the terminal. The eyebrow closes its eyes. Works with or without a notch, and on external displays.</p>
@@ -743,7 +761,7 @@ footer a:hover { color: var(--text); }
     <div class="steps">
       <div class="step reveal"><h3>Paste one line</h3><p>Copy the install command above and run it in Claude Code. No Homebrew, no Xcode.</p></div>
       <div class="step reveal"><h3>Unibrow arrives</h3><p>Next time a session starts, the plugin downloads the app, verifies it and starts it. The eyebrow appears in the menu bar.</p></div>
-      <div class="step reveal"><h3>Answer from the notch</h3><p>Hover when the dot pulses. Read, click, keep working. Restart sessions that were open before the install.</p></div>
+      <div class="step reveal"><h3>Answer from the notch</h3><p>Hover when a number appears beside the glyph. Read, click, keep working. Restart sessions that were open before the install.</p></div>
     </div>
   </div>
 </section>
@@ -844,12 +862,15 @@ footer a:hover { color: var(--text); }
 
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const ic = (id, cls = '') => `<svg class="icon ${cls}" aria-hidden="true"><use href="#${id}"/></svg>`;
+  const glyph = (cls = '') => `<svg class="glyph ${cls}" aria-hidden="true"><use href="#g-cc"/></svg>`;
+  const checkMark = '<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 5.2 4.2 7.4 8 2.8" fill="none" stroke="#000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const dots = '<svg viewBox="0 0 10 10" aria-hidden="true"><circle cx="1.6" cy="5" r="1.25"/><circle cx="5" cy="5" r="1.25"/><circle cx="8.4" cy="5" r="1.25"/></svg>';
   // Invisible and bidi characters are shown escaped, as the app does: \u{200B}.
   const vis = s => esc(s).replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF]/g,
     c => `<span class="esc">\\u{${c.codePointAt(0).toString(16).toUpperCase()}}</span>`);
   const chip = (text, icon, warn) => `<span class="chip${warn ? ' warn' : ''}">${icon ? ic(icon) : ''}${esc(text)}</span>`;
   const appBtn = app => `<span class="tipwrap"><button type="button" class="app" data-act="jump">${esc(app)} ${ic('i-arrow')}</button></span>`;
-  const head = it => `<div class="req-h">${ic(it.icon, 'ti')}<b>${esc(it.title)}</b>
+  const head = it => `<div class="req-h">${glyph('ti')}<b>${esc(it.title)}</b>
     ${it.branch ? chip(it.branch, 'i-branch') : ''}${it.agent ? chip(it.agent, 'i-users') : ''}${chip(it.session, 'i-terminal')}
     <span class="sp"></span>${appBtn(it.app)}<span class="age" data-age></span></div>`;
   const json = obj => esc(JSON.stringify(obj, null, 2)).replace(/^( *)(&quot;[^&]+&quot;):/gm, '$1<span class="k">$2</span>:');
@@ -900,7 +921,7 @@ footer a:hover { color: var(--text); }
         <button type="button" class="a a-deny" data-act="decline">Decline</button>
         <button type="button" class="a a-ok" data-act="submit">Submit</button></div></div>`,
 
-    alert: it => `<div class="alert${it.fail ? ' fail' : ''}">${ic(it.fail ? 'i-octagon' : 'i-user-q')}
+    alert: it => `<div class="alert${it.fail ? ' fail' : ''}">${glyph('row')}
       <div class="al-main"><div class="req-h"><b>${esc(it.project)}</b>${chip(it.branch, 'i-branch')}${chip(it.session, 'i-terminal')}<span class="sp"></span>${appBtn(it.app)}<span class="age" data-age></span></div>
         <div class="al-hl">${esc(it.headline)}</div>
         <div class="req-sub">${esc(it.subtitle)}</div>
@@ -956,10 +977,12 @@ footer a:hover { color: var(--text); }
       auto: [[1300, act('jump')], [3600, act('dismiss')]] },
   };
   // Each scene arrives once the notch is clear; items in one scene queue up.
-  const scenes = [['bash', 'edit'], ['question'], ['hidden'], ['plan'], ['form', 'limit'], ['agent'], ['finished']];
+  // The tour ends on an update (background agents still run) that the real finish then replaces.
+  const scenes = [['bash', 'edit'], ['question'], ['hidden'], ['plan'], ['form', 'limit'], ['agent'], ['update']];
 
   // ----- State
-  let queue = [], finShown = false, sceneIx = -1, started = false;
+  // `notice`: null, 'update' or 'finished' (one session's notice; the finish replaces the update in place).
+  let queue = [], notice = null, sceneIx = -1, started = false;
   let flowT = [], autoT = [];
   let hovered = false, focused = false, userPaused = false, engagedUntil = 0, inView = false;
   const later = (fn, ms) => flowT.push(setTimeout(fn, reduce ? Math.min(ms, 600) : ms));
@@ -985,18 +1008,22 @@ footer a:hover { color: var(--text); }
 
   function update() {
     const n = queue.length;
-    const state = n ? 'ask' : finShown ? 'done' : 'idle';
-    if (countEl.textContent !== String(n) && n > Number(countEl.textContent)) {
-      countEl.classList.remove('bump'); void countEl.offsetWidth; countEl.classList.add('bump');
-    }
-    countEl.textContent = n;
+    const failed = queue.some(sl => sl._it && sl._it.fail && !sl.dataset.gone);
+    // NotchHost.indicator: a failure first, then what needs you, then done, then an update.
+    const state = failed ? 'fail' : n ? 'ask' : notice === 'finished' ? 'done' : notice === 'update' ? 'update' : 'idle';
+    const prev = Number(countEl.dataset.n || 0);
+    if (state === 'ask' && n > prev) { countEl.classList.remove('bump'); void countEl.offsetWidth; countEl.classList.add('bump'); }
+    countEl.dataset.n = n;
+    countEl.innerHTML = state === 'fail' ? '!' : state === 'done' ? checkMark : state === 'update' ? dots : String(n);
     island.dataset.state = state;
-    wings.setAttribute('aria-label', n ? `Claude Code, ${n} waiting` : finShown ? 'Claude Code, a session finished' : 'Claude Code, nothing waiting');
+    wings.setAttribute('aria-label', {
+      fail: 'Claude Code, a session failed', ask: `Claude Code, ${n} waiting`, done: 'Claude Code, a session finished',
+      update: 'Claude Code replied, background work goes on', idle: 'Claude Code, nothing waiting' }[state]);
     reqsEl.querySelectorAll('.group').forEach(g => {
       const c = g.querySelectorAll('.slot').length;
       g.querySelector('.n').textContent = c > 1 ? `(${c})` : '';
     });
-    emptyEl.hidden = n > 0 || finShown;
+    emptyEl.hidden = n > 0 || !!notice;
     checkOverflow();
   }
 
@@ -1007,7 +1034,7 @@ footer a:hover { color: var(--text); }
   }
 
   function arrive(key) {
-    if (key === 'finished') return showFinished();
+    if (key === 'update') return showNotice('update');
     const it = items[key];
     const slot = document.createElement('div');
     slot.className = 'slot';
@@ -1033,17 +1060,22 @@ footer a:hover { color: var(--text); }
     if (queue.length === 1) scheduleAuto();
   }
 
-  function showFinished() {
-    finShown = true;
-    finEl.innerHTML = `<div class="fin-h"><span>Finished</span><small>nothing to do</small><span class="sp"></span><button type="button" class="a a-quiet" data-act="clear">Clear</button></div>
-      <div class="slot"><div class="inner"><div class="fin-row">${ic('i-check-circle', 'done')}
+  // One session's notice, as FinishedSection shows it: an update (blue, "still working") while background agents
+  // run, then the real finish (green) in its place.
+  function showNotice(kind) {
+    notice = kind;
+    const upd = kind === 'update';
+    const summary = upd ? 'Started two reviewers on the diff.' : 'Both reviewers are done: no issues found.';
+    finEl.innerHTML = `<div class="fin-h${upd ? ' upd' : ''}"><span>${upd ? 'Updates' : 'Finished'}</span><small>${upd ? 'still working' : 'nothing to do'}</small><span class="sp"></span><button type="button" class="a a-quiet" data-act="clear">Clear</button></div>
+      <div class="slot"><div class="inner"><div class="fin-row">${glyph('row')}
         <div class="al-main"><div class="req-h"><b>aurora-web</b>${chip('feature/charts', 'i-branch')}${chip('e91b', 'i-terminal')}<span class="sp"></span>${appBtn('Ghostty')}<span class="age" data-age>now</span></div>
-        <div class="req-sub">Added the visx line chart and tests.</div></div>
+        ${upd ? '<div class="upd-hl">Claude Code replied · 2 agents still working</div>' : ''}
+        <div class="req-sub">${summary}</div></div>
         <button type="button" class="x" data-act="dismiss" aria-label="Dismiss">${ic('i-x')}</button></div></div></div>`;
     finEl.querySelector('.slot').dataset.t0 = Date.now();
     update();
     if (!island.classList.contains('open')) later(() => setOpen(true), 700);
-    say('Finished: aurora-web. Added the visx line chart and tests.');
+    say(upd ? 'Update: aurora-web. Claude Code replied, 2 agents still working.' : `Finished: aurora-web. ${summary}`);
     scheduleAuto();
   }
 
@@ -1083,7 +1115,7 @@ footer a:hover { color: var(--text); }
 
   function clearFinished() {
     const hadFocus = finEl.contains(document.activeElement);
-    finShown = false; finEl.innerHTML = '';
+    notice = null; finEl.innerHTML = '';
     update();
     if (hadFocus) wings.focus();
     if (!queue.length && !hovered && !focused) setOpen(false);
@@ -1098,7 +1130,9 @@ footer a:hover { color: var(--text); }
     const head = queue[0];
     if (head && !head.dataset.gone) {
       head._it.auto.forEach(([ms, fn]) => autoT.push(setTimeout(() => fn(head), ms)));
-    } else if (finShown) {
+    } else if (notice === 'update') {
+      autoT.push(setTimeout(() => showNotice('finished'), 4200));
+    } else if (notice === 'finished') {
       autoT.push(setTimeout(() => setOpen(false), 3600), setTimeout(restart, 6200));
     } else if (sceneIx >= scenes.length - 1 && !queue.length) {
       autoT.push(setTimeout(restart, 1800));
@@ -1107,7 +1141,7 @@ footer a:hover { color: var(--text); }
 
   function restart() {
     flowT.forEach(clearTimeout); flowT = []; clearAuto();
-    queue = []; finShown = false; sceneIx = -1;
+    queue = []; notice = null; sceneIx = -1;
     reqsEl.innerHTML = ''; alertsEl.innerHTML = ''; finEl.innerHTML = '';
     setOpen(false); update();
     later(nextScene, reduce ? 0 : 900);
@@ -1233,7 +1267,7 @@ footer a:hover { color: var(--text); }
   island.addEventListener('mouseenter', () => { hovered = true; setOpen(true); scheduleAuto(); });
   island.addEventListener('mouseleave', () => {
     hovered = false;
-    if (!queue.length && !finShown) setOpen(false);
+    if (!queue.length && !notice) setOpen(false);
     scheduleAuto();
   });
   island.addEventListener('focusin', e => {
