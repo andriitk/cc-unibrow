@@ -42,7 +42,7 @@ struct RequestListView: View {
                     NoticeSection(model: model, kind: .update)
                 }
                 if !model.finished.finishedItems.isEmpty {
-                    NoticeSection(model: model, kind: .finished)
+                    NoticeSection(model: model, kind: .finished, showsClear: model.finished.updateItems.isEmpty)
                 }
             }
             .padding(.horizontal, 12)
@@ -161,13 +161,14 @@ private struct WindowFocusHint: View {
 
 /// Sessions that ended their turn: "Updates" (Claude replied, background
 /// work goes on) and "Finished" (done). Deliberately quieter than request
-/// cards: no buttons to decide, just a way to jump there. Clear dismisses
-/// every notice, updates and finished alike.
+/// cards: no buttons to decide, just a way to jump there. One Clear, on the
+/// first section, dismisses every notice, updates and finished alike.
 private struct NoticeSection: View {
     enum Kind { case update, finished }
 
     let model: any NotchHost
     let kind: Kind
+    var showsClear = true
 
     private var items: [FinishedSession] {
         kind == .update ? model.finished.updateItems : model.finished.finishedItems
@@ -182,9 +183,11 @@ private struct NoticeSection: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.white.opacity(0.35))
                 Spacer(minLength: 0)
-                Button("Clear") { model.clearFinished() }
-                    .buttonStyle(.pill(.quiet))
-                    .help("Dismiss all finished sessions and updates")
+                if showsClear {
+                    Button("Clear") { model.clearFinished() }
+                        .buttonStyle(.pill(.quiet))
+                        .help("Dismiss all updates and finished sessions")
+                }
             }
             .foregroundStyle(kind == .update ? NotchIndicator.updateTint.opacity(0.9) : Color.green.opacity(0.8))
             .padding(.horizontal, 4)
