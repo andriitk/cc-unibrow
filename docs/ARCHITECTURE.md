@@ -34,7 +34,7 @@ Unibrow has three parts: a Claude Code **plugin** that registers hooks, a tiny
 | `PostToolUse`, `PostToolUseFailure`, `PermissionDenied` | async | A request was answered elsewhere and its tool finished, failed or was denied by auto mode: drop its card (below). |
 | `PostToolBatch` | async | Every tool call of the agent's last response resolved: drop the cards of those calls, including one refused in the terminal with feedback (below). The relay drops the calls' `tool_response` before sending. |
 | `UserPromptSubmit`, `SessionEnd` | async | The session moved on: drop its cards, alert and “finished” notice. |
-| `Stop` | async | The turn ended: drop leftover cards, show a “finished” notice. |
+| `Stop` | async | The turn ended: drop leftover cards, show an “update” notice while background work still runs, else a “finished” one (below). |
 | `SubagentStart`, `SubagentStop` | async | Passed through with `agent_id` and `agent_type` (wire version 2). Counts running subagents per session (below). |
 | `SessionStart` | sync, 5 s | Installs a missing app, or updates one older than the plugin (below), unless a compatible host app provides the socket. |
 
@@ -343,6 +343,41 @@ after the deadline in case the relay did not. A test checks that `hooks.json`
 and the constants agree. Permission requests keep the one-hour timeout: the
 terminal shows its own prompt alongside the card.
 
+## Updates and finished notices
+
+Claude Code fires `Stop` at the end of every main-agent turn, also when the
+turn ends while background agents or background shells it started keep
+running; their results wake the session for a follow-up turn later. So a
+`Stop` alone does not mean the session is done.
+
+`FinishedSession(stopPayload:)` decides from the `Stop` payload alone:
+`background_tasks` lists the session's in-flight tasks (per Claude Code's
+hooks reference: `id`, `type`, `status`, `description`, and per type
+`command`, `agent_type`…). `BackgroundWork` counts the entries whose
+`status` is not an ended one (`completed`, `failed`, `killed`, `stopped`,
+`cancelled`, `error`; a missing or unknown status counts as running):
+`subagent` and `teammate` as agents, every other type (`shell`, `monitor`,
+`workflow`, `MCP task`…) as background tasks. `session_crons` (scheduled
+prompts) do not count: nothing runs until they fire.
+
+- Something still runs: `kind` is `.update(BackgroundWork)`, shown under
+  **Updates** in calm blue with a plain line, "Claude Code replied · 2 agents
+  still working" / "1 background task still running".
+- Nothing runs, or the payload has no `background_tasks` (an older Claude
+  Code): `.finished`, as before.
+
+No file is read and nothing polls, so the decision adds no delay. The
+transcript is not read either: the payload is the documented source, and the
+transcript format is not.
+
+`FinishedSessions` keeps one notice per session, so the follow-up turn's
+`Stop` with nothing running replaces the update with a finished notice (the
+card moves to **Finished**). Both kinds share everything else: the hover
+Open and dismiss, **Clear** (one button for both sections), expiry after 30
+minutes, removal on `UserPromptSubmit`, a new request, `StopFailure` or
+`SessionEnd`, the peek (not while the session's app is in front) and no
+sound. **Show Finished Sessions** turns both off.
+
 ## Alerts
 
 `SessionAlert` covers what needs the user without a request to answer:
@@ -376,7 +411,7 @@ it can never make one disappear or approve anything on its own.
 5. after one hour, the hook timeout.
 
 **Bounded resources.** At most 100 pending requests (the rest go to the
-terminal) and 50 finished notices, which expire after 30 minutes. A card's data
+terminal) and 50 update or finished notices, which expire after 30 minutes. A card's data
 lives only in that card. Large inputs are capped for display only; Claude Code
 always receives the full input.
 
@@ -512,6 +547,36 @@ Public surface, nothing else:
 | `NotchRootView(model:island:)` | The whole island. |
 | `IslandState(notchSize:)` | UI state the panel and the view share: `isExpanded`, `islandFrame` (for hit-testing a click-through panel), `notchSize`. |
 | `EnvironmentValues.beginTyping`, `BeginTypingAction` | Lets a text field ask the panel for the keyboard. |
+| `EnvironmentValues.notchArtwork`, `NotchArtwork`, `NotchArtwork.Slot` | The drawings on the notch's left side (below). |
+| `NotchIndicator`, `NotchHost.indicator` | What the right wing shows (below). |
+| `ClaudeCodeGlyph` | Unibrow's drawing, the Claude Code pixel glyph. |
+
+### Artwork and indicator
+
+The left wing and every row (cards, alerts, updates, finished notices and
+their peek rows) start with a drawing from `\.notchArtwork`. Unibrow's
+default, `NotchArtwork.claudeCodeGlyph`, draws `ClaudeCodeGlyph` everywhere:
+14 × 8 cells in #D97757, drawn as a path (no image files), 1.5 pt per cell
+(3 px on a Retina display). An embedding app sets its own `NotchArtwork`
+(`wingWidth`, `rowWidth`, `draw`) to vary the drawing. `draw` gets a `Slot`
+with the neutral data of that place, never art:
+
+| Slot | Carries |
+|---|---|
+| `.wing(NotchIndicator, expanded:)` | The right wing's state; `expanded` while the list is open. |
+| `.request(PendingRequest)` | The request: tool, question, plan approval, elicitation, session. |
+| `.failure(SessionAlert)` | A failed turn: `kind` `.stopFailure(StopFailureKind, details:)`, session, branch. |
+| `.needsInput(SessionAlert)` | A background agent waiting for input: its title and message. |
+| `.update(FinishedSession)` | `kind` `.update(BackgroundWork)` (agent and task counts), summary, session. |
+| `.finished(FinishedSession)` | A finished session: summary, session. |
+
+`Slot(_ alert:)` and `Slot(_ notice:)` pick the slot of a row, so a host
+that draws elsewhere (a phone, a widget) can map the same data the same way.
+
+The right wing always shows `NotchHost.indicator`, by priority: `.failure`
+(red **!**, never hidden by a count), `.waiting(count:)` (orange, requests
+plus alerts), `.done` (green **✓**, at least one finished notice),
+`.update` (calm blue, only updates left); `nil` when the island is empty.
 
 The panel itself (`NotchPanel`, `NotchPanelController`, `NotchGeometry`),
 the menu bar and everything that talks to the socket stay in the app: a

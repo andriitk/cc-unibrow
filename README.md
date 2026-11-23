@@ -6,7 +6,7 @@
 
 **Approve Claude Code from your MacBook notch.**
 
-Every permission prompt, question and “done” from all your Claude Code sessions,
+Every permission prompt, question, update and “done” from all your Claude Code sessions,
 in one list that grows out of the notch. Hover, read, click. Never switch windows.
 
 [![CI](https://github.com/andriitk/cc-unibrow/actions/workflows/ci.yml/badge.svg)](https://github.com/andriitk/cc-unibrow/actions/workflows/ci.yml)
@@ -30,8 +30,8 @@ been waiting two minutes for *“Do you want to proceed?”* in a window you are
 not looking at.
 
 Unibrow puts every one of those prompts in the notch, the one place on screen
-you always see. A pulsing dot means *Claude needs you*; hover to see what, and
-answer right there. The terminal keeps working exactly as before.
+you always see. A number beside the Claude Code glyph means *Claude needs
+you*; hover to see what, and answer right there. The terminal keeps working exactly as before.
 
 ## Install
 
@@ -102,10 +102,16 @@ Works on MacBooks with and without a notch, and on external displays.
 
 ### Reading the notch
 
-| You see | It means | Do |
+The Claude Code glyph sits on the left of the notch whenever there is
+something to show. The right side says what, and when several things are
+true at once the first one in this table wins:
+
+| Right side | It means | Do |
 |---|---|---|
-| 🟠 pulsing dot and a number | Claude (or an MCP server) is waiting for you in that many places, or a session stopped on an error | Hover the notch |
-| 🟢 small check, no number | A session finished its answer. Nothing to do | Hover to see which one, or ignore it |
+| 🔴 **!** | A session stopped on an API error | Hover the notch |
+| 🟠 a number | Claude (or an MCP server, or a background agent) waits for you in that many places | Hover the notch |
+| 🟢 **✓** | A session finished its turn and nothing runs in it any more | Hover to see which one, or ignore it |
+| 🔵 **•••** | Claude replied, but background agents or tasks in that session still run | Nothing yet; it turns into ✓ when the work is done |
 | A short slide-down for a few seconds | Something just arrived | Read it, or hover to act |
 
 Hover the notch and it opens into a list, grouped by project. Move the pointer
@@ -119,7 +125,9 @@ URL or use an MCP tool. You see the exact command or a diff of the edit.
 - **Allow**: run it once.
 - **Always**: run it and don’t ask again for this kind of action, the same as
   *“Yes, and don’t ask again”* in the terminal.
-- **Deny**: refuse. By default Claude stops and waits for your next message.
+- **Deny**: refuse. Claude stops the turn and waits for your next message,
+  as after a refusal in the terminal. (On a plan, **Keep Planning** asks for
+  changes instead.)
 - **Details**: the full, exact input. Headlines shorten long paths (`~/…`);
   *Details* never does, so you always see what will really run.
 - **Impact**: for a few risky shell commands, up to three lines on what they
@@ -167,17 +175,25 @@ overload, sign-in, billing…), with the error details one click away, and an
 orange row when a background agent needs your input. Click to jump to the
 session; the row goes away once the session moves on.
 
-**Finished.** A quiet green row when a session completes its turn. No sound,
-no number. Click it to jump to that session; it disappears by itself when you
-send your next message there.
+**Updates.** Claude Code ends a turn whenever Claude replies, also while
+background agents or background shells it started are still running. Such a
+turn is not the end of the work, so it shows as a blue row under
+**Updates**: *Claude Code replied · 2 agents still working* (or *1 background
+task still running*), with the first line of the reply. When the background
+work is done and Claude's follow-up turn ends with nothing left running, the
+same row turns into a **Finished** one. No sound, no number.
+
+**Finished.** A quiet green row when a session completes its turn and nothing
+runs in it any more. No sound, no number. Click an update or finished row to
+jump to that session; it disappears by itself when you send your next
+message there, and **Clear** dismisses them all.
 
 Every card shows the **project**, **git branch**, a short **session tag** (so
 two terminals in the same project are easy to tell apart) and the **app** the
 session runs in. Click **Cursor ↗**, **Terminal ↗**, **PyCharm ↗**… to jump
 straight there. While subagents run in that session, a small **2 agents**
-label shows how many (hover for their types); it never pulses or opens the
-notch by itself, so a "Finished" row with **1 agent** means the turn ended
-but a background agent is still working.
+label shows how many (hover for their types); it never opens the notch by
+itself.
 
 ### The terminal still works
 
@@ -192,9 +208,8 @@ Click the eyebrow in the menu bar:
 | Setting | Default | What it does |
 |---|---|---|
 | Pause (ask in Terminal) | off | Unibrow steps aside: every prompt and MCP request goes to the terminal (including ones already waiting in the notch) and nothing shows in the notch, alerts and finished notices included. The eyebrow closes its eyes. |
-| Deny Stops the Turn | on | After **Deny**, Claude stops and waits for you. Off: Claude tries another approach. |
-| Play Sound | on | A soft *tink* when Claude needs you. Finished notices are always silent. |
-| Show Finished Sessions | on | The green “done” rows. Alerts (a stopped turn, an agent waiting for input) show either way. |
+| Play Sound | on | A soft *tink* when Claude needs you. Updates and finished notices are always silent. |
+| Show Finished Sessions | on | The blue “update” and green “done” rows. Alerts (a stopped turn, an agent waiting for input) show either way. |
 | Launch at Login | off | Start Unibrow with your Mac. |
 | Exact Window Focus | off | Jump to the session’s *own* window, not just its app. See below. |
 
@@ -330,7 +345,6 @@ reuse the notch views (the `UnibrowNotchUI` library). Contributions are welcome:
 ## Roadmap
 
 - Signed and notarized releases, Homebrew cask
-- MCP server forms (elicitation) in the notch
 - Plan approval with a choice of permission mode
 - Per-project ignore list
 
@@ -346,4 +360,6 @@ implementation focused on many concurrent sessions.
 [MIT](LICENSE) © 2026 Andrii Tkachuk
 
 <sub>Unofficial community project, not affiliated with or endorsed by Anthropic.
-“Claude” and “Claude Code” are trademarks of Anthropic.</sub>
+“Claude” and “Claude Code” are trademarks of Anthropic. The pixel glyph in the
+notch is Claude Code's mark; it marks what comes from your Claude Code
+sessions.</sub>
