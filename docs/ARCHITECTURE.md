@@ -357,7 +357,7 @@ running; their results wake the session for a follow-up turn later. So a
 hooks reference: `id`, `type`, `status`, `description`, and per type
 `command`, `agent_type`…). `BackgroundWork` counts the entries whose
 `status` is not an ended one (`completed`, `failed`, `killed`, `stopped`,
-`cancelled`, `error`; a missing or unknown status counts as running):
+`cancelled`/`canceled`, `error`, compared case-insensitively; a missing or unknown status counts as running):
 `subagent` and `teammate` as agents, every other type (`shell`, `monitor`,
 `workflow`, `MCP task`…) as background tasks. `session_crons` (scheduled
 prompts) do not count: nothing runs until they fire.
