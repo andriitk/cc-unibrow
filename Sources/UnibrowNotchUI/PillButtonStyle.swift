@@ -28,7 +28,11 @@ private struct PillButton: View {
     @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
+        // A pill is one line at its natural width: a narrow row never squeezes
+        // its label into two lines ("Termin / al"). Rows make room instead.
         configuration.label
+            .lineLimit(1)
+            .fixedSize()
             .font(.system(size: 12, weight: .semibold))
             .foregroundStyle(foreground)
             .padding(.horizontal, kind == .quiet ? 8 : 12)

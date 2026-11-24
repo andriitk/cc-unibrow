@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **No broken words in the notch.** A narrow row could squeeze a button's
+  label into two lines ("Termin / al"). Button labels are now always one
+  line. The project line of alert and finished rows drops detail instead:
+  first the branch chip, then the app's name on the open button (the arrow
+  and the tooltip stay), and only then truncates the project name.
+
 ## [0.3.0] - 2026-11-23
 
 ### Added
