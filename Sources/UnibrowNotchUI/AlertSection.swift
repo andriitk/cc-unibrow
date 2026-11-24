@@ -57,38 +57,10 @@ private struct AlertRow: View {
                 .padding(.top, 2)
 
             VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text(alert.projectName)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.9))
-                        .lineLimit(1)
-                    if let branch = alert.branch {
-                        Chip(text: Chip.shortened(branch), symbol: "arrow.triangle.branch")
-                    }
-                    Chip(text: alert.sessionTag, symbol: "terminal")
-                        .help("Claude Code session \(alert.sessionID)")
-                    if let agents {
-                        Chip(text: agents.text, symbol: "person.3")
-                            .help(agents.help)
-                    }
-                    Spacer(minLength: 4)
-                    if let name = hostApp?.localizedName {
-                        Button(action: onOpen) {
-                            HStack(spacing: 3) {
-                                Text(name)
-                                Image(systemName: "arrow.up.forward").imageScale(.small)
-                            }
-                        }
-                        .buttonStyle(.pill(.quiet))
-                        .help("Open the session in \(name)")
-                    }
-                    TimelineView(.periodic(from: .now, by: 30)) { timeline in
-                        Text(CardHeader.age(from: alert.receivedAt, to: timeline.date))
-                            .font(.system(size: 10, weight: .medium, design: .rounded))
-                            .monospacedDigit()
-                            .foregroundStyle(.white.opacity(0.4))
-                    }
-                }
+                SessionPlaceRow(
+                    projectName: alert.projectName, branch: alert.branch, sessionTag: alert.sessionTag,
+                    sessionID: alert.sessionID, agents: agents, hostAppName: hostApp?.localizedName,
+                    since: alert.receivedAt, onOpen: onOpen)
 
                 Text(alert.headline)
                     .font(.system(size: 12, weight: .medium))
