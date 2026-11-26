@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-26
+
+### Fixed
+
+- **"Still running" that never ends.** A session that had published a
+  claude.ai artifact showed every reply as an update, "1 background task
+  still running", and never as finished. Claude Code keeps a watch on that
+  artifact for the whole session; Unibrow no longer counts it (or any task
+  Claude Code marks as its own) as background work. Real background agents,
+  shells and monitors still make an update.
+
 ## [0.3.1] - 2026-11-24
 
 ### Fixed
