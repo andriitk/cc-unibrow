@@ -128,6 +128,26 @@ struct FinishedSessionsTests {
         #expect(work == BackgroundWork(agents: 1, tasks: 2))
     }
 
+    // Claude Code's watch on an artifact the session published, as the Stop
+    // payload lists it (type "monitor", lives as long as the session).
+    static let artifactWatch = #"{"id":"w1","type":"monitor","status":"running","description":"live updates for artifact https://claude.ai/artifact/abc"}"#
+
+    @Test("Claude Code's own artifact watch is not work: the turn is finished")
+    func artifactWatchIsNotWork() throws {
+        let notice = try #require(FinishedSession(stopPayload: Self.stop(tasks: "[\(Self.artifactWatch)]")))
+        #expect(notice.kind == .finished)
+        #expect(notice.updateLine == nil)
+    }
+
+    @Test("Real work beside the artifact watch still makes an update, counting only the work")
+    func artifactWatchBesideWork() throws {
+        let ambient = #"{"id":"x","type":"monitor","status":"running","description":"ci","ambient":true}"#
+        let monitor = #"{"id":"m","type":"monitor","status":"running","description":"watch the deploy log"}"#
+        let tasks = "[\(Self.artifactWatch),\(ambient),\(monitor),\(Self.backgroundAgent)]"
+        let work = try #require(BackgroundWork(stopPayload: Self.stop(tasks: tasks)))
+        #expect(work == BackgroundWork(agents: 1, tasks: 1))
+    }
+
     @Test("The real finish replaces the session's update: one notice per session")
     func finishReplacesUpdate() throws {
         var feed = FinishedSessions()

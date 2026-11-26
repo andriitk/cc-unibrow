@@ -30,12 +30,28 @@ public struct BackgroundWork: Sendable, Hashable {
         var tasks = 0
         for task in list {
             if let status = task["status"]?.stringValue?.lowercased(), Self.endedStatuses.contains(status) { continue }
+            if Self.isAmbient(task) { continue }
             switch task["type"]?.stringValue {
             case "subagent", "teammate": agents += 1
             default: tasks += 1
             }
         }
         self.init(agents: agents, tasks: tasks)
+    }
+
+    /// Claude Code's own session plumbing, not work the turn waits for: the
+    /// watch it keeps on an artifact the session published ("live updates
+    /// for artifact <url>", a `monitor` that lives as long as the session
+    /// and never wakes a follow-up turn). Claude Code marks it `ambient` in
+    /// its stream events but not in the `Stop` payload, so the description is
+    /// the only sign there; `ambient: true` is honoured too should the payload
+    /// gain it. A changed wording only brings back the old "update" notice.
+    static let artifactWatchPrefix = "live updates for artifact "
+
+    static func isAmbient(_ task: JSONValue) -> Bool {
+        if task["ambient"]?.boolValue == true { return true }
+        return task["type"]?.stringValue == "monitor"
+            && task["description"]?.stringValue?.hasPrefix(artifactWatchPrefix) == true
     }
 
     /// "2 agents still working", "1 background task still running",
